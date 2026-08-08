@@ -65,7 +65,15 @@ financing_label = st.sidebar.radio(
 )
 financing = "lump_sum" if financing_label.startswith("Lump-sum") else "distortionary"
 
-s_G_new_pct = st.sidebar.slider("New government purchases, G/Y (%)", 5.0, 40.0, 25.0, 1.0, key="s_G_new_pct")
+delta_s_G_pct = st.sidebar.slider(
+    "Change in government purchases, ΔG/Y (percentage points)", -10.0, 15.0, 5.0, 0.5,
+    help="Expressed relative to the baseline G/Y set above, so the experiment is "
+         "never accidentally a zero-size change.", key="delta_s_G_pct")
+s_G_new_pct_raw = s_G_old_pct + delta_s_G_pct
+s_G_new_pct = min(max(s_G_new_pct_raw, 1.0), 48.0)
+if s_G_new_pct != s_G_new_pct_raw:
+    st.sidebar.warning(f"New G/Y clamped to {s_G_new_pct:.1f}% (must stay between 1% and 48%).")
+st.sidebar.caption(f"New G/Y = {s_G_old_pct:.1f}% + {delta_s_G_pct:+.1f} = **{s_G_new_pct:.1f}%**")
 
 duration_label = st.sidebar.radio("Duration of the change", ["Permanent", "Temporary"], key="duration_label")
 permanent = duration_label == "Permanent"
@@ -121,6 +129,11 @@ ss_old, ss_new, path = experiment.ss_old, experiment.ss_new, experiment.path
 # --------------------------------------------------------------------------
 # Headline numbers
 # --------------------------------------------------------------------------
+
+if abs(delta_s_G_pct) < 1e-9:
+    st.info("ΔG/Y is set to 0 — the baseline and new policy are identical, so there's no "
+            "experiment to show yet. Move the **ΔG/Y** slider away from 0 in the sidebar.")
+    st.stop()
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Long-run output multiplier ΔY/ΔG",
