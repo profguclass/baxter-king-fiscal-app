@@ -8,6 +8,8 @@ Run locally with:   streamlit run app.py
 Deploy for free on Streamlit Community Cloud by pointing it at this file.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -366,3 +368,10 @@ with st.expander("ℹ️ Methodology notes"):
 General Equilibrium." *American Economic Review* 83 (3): 315-334.
         """
     )
+
+st.divider()
+_emblem_path = Path(__file__).parent / "kgu_emblem.png"
+if _emblem_path.exists():
+    _, _emblem_col, _ = st.columns([1, 1, 1])
+    with _emblem_col:
+        st.image(str(_emblem_path), use_container_width=True)
