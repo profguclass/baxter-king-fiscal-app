@@ -44,7 +44,7 @@ if st.sidebar.button("↺ Reset to paper's benchmark calibration", use_container
 # controls.
 theta_N = 0.58
 delta_pct = 10.0
-N_target_pct = 40.0
+N_target_pct = 20.0
 
 # 1. Duration ---------------------------------------------------------------
 st.sidebar.subheader("1. Duration of the change")
@@ -210,11 +210,12 @@ left_label, right_label = "Original steady state", "New steady state"
 ss_table = pd.DataFrame({
     "Variable": ["Output Y", "Consumption C", "Investment I", "Private capital K",
                  "Public capital Kᴳ", "Government purchases G (total)",
+                 "  Basic G_B", "  Public investment Iᴳ", "  Transfers TR",
                  "Real wage w", "Tax rate τ (%)"],
     left_label: [ss_old.Y, ss_old.C, ss_old.I, ss_old.K, ss_old.KG, ss_old.G,
-                 ss_old.w, ss_old.tau * 100],
+                 ss_old.GB, ss_old.IG, ss_old.TR, ss_old.w, ss_old.tau * 100],
     right_label: [ss_new.Y, ss_new.C, ss_new.I, ss_new.K, ss_new.KG, ss_new.G,
-                  ss_new.w, ss_new.tau * 100],
+                  ss_new.GB, ss_new.IG, ss_new.TR, ss_new.w, ss_new.tau * 100],
 })
 ss_table["% change"] = 100 * (ss_table[right_label] / ss_table[left_label].replace(0, np.nan) - 1)
 
