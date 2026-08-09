@@ -46,13 +46,17 @@ print(f"[Permanent, income tax] long-run multiplier dY/dG = {exp_grh.multiplier_
 assert exp_grh.multiplier_long_run < 0, "income-tax financing should give a negative long-run multiplier"
 print()
 
-# --- Public investment (Table 4 style), theta_G=0 baseline must match k_adj/direct=0 at 0 ---
-print("Public investment long-run table (Section VI / Table 4 style), theta_G grid:")
+# --- Public investment (Table 4 replication), s_IG=0.05 (paper's own calibration) --
+print("Public investment long-run table (Baxter & King Table 4), theta_G grid:")
 theta_G_grid = np.array([0.0, 0.01, 0.03, 0.05, 0.10, 0.20, 0.40])
-tbl = public_investment_long_run(theta_N, delta, r, A, s_G, theta_L, False, theta_G_grid, s_IG=0.05)
-print(f"{'theta_G':>8} {'direct':>8} {'k_adj':>8} {'both':>8}   (paper col ii, iii, iv)")
+tbl = public_investment_long_run(theta_N, delta, r, A, s_other=0.15, N_target=N_target,
+                                  theta_G_grid=theta_G_grid, s_IG=0.05)
+print(f"{'theta_G':>8} {'direct':>8} {'k_adj':>8} {'both':>8} {'dC':>8} {'dI':>8}   (paper: ii,iii,iv,v,vi)")
 for i in range(len(theta_G_grid)):
-    print(f"{tbl['theta_G'][i]:8.2f} {tbl['direct'][i]:8.2f} {tbl['k_adj'][i]:8.2f} {tbl['both'][i]:8.2f}")
+    print(f"{tbl['theta_G'][i]:8.2f} {tbl['direct'][i]:8.2f} {tbl['k_adj'][i]:8.2f} "
+          f"{tbl['both'][i]:8.2f} {tbl['dC'][i]:8.2f} {tbl['dI'][i]:8.2f}")
+assert np.allclose(tbl["direct"], theta_G_grid / 0.05), "direct effect should equal theta_G/s_IG exactly"
+assert np.isclose(tbl["k_adj"][3], 1.72, atol=0.01), "k_adj at theta_G=0.05 should match the paper's 1.72 exactly"
 assert np.all(np.diff(tbl["both"]) > 0), "multiplier should be increasing in theta_G"
 print()
 
