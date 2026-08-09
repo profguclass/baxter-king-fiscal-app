@@ -86,9 +86,10 @@ s_G_old_pct = st.sidebar.slider("Baseline total government purchases, G/Y (%)", 
 st.sidebar.caption("Tax rate τ = G/Y always, under both financing rules above (item 2).")
 
 delta_s_G_pct = st.sidebar.slider(
-    "Change in government purchases, ΔG/Y (percentage points)", -10.0, 15.0, 5.0, 0.5,
-    help="Expressed relative to the baseline G/Y set above, so the experiment is "
-         "never accidentally a zero-size change. Composition shares (item 6) stay fixed.",
+    "Change in government purchases, ΔG/Y (percentage points)", -10.0, 15.0, 0.0, 0.5,
+    help="Expressed relative to the baseline G/Y set above. Defaults to 0 (no policy "
+         "change yet) -- move this slider to run an experiment. Composition shares "
+         "(item 6) stay fixed.",
     key="delta_s_G_pct")
 s_G_new_pct_raw = s_G_old_pct + delta_s_G_pct
 s_G_new_pct = min(max(s_G_new_pct_raw, 1.0), 48.0)
