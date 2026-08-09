@@ -39,6 +39,13 @@ if st.sidebar.button("↺ Reset to paper's benchmark calibration", use_container
         del st.session_state[k]
     st.rerun()
 
+# Fixed at the paper's benchmark calibration (Table 1): labor share of income,
+# depreciation rate, and target steady-state hours worked are no longer sidebar
+# controls.
+theta_N = 0.58
+delta_pct = 10.0
+N_target_pct = 20.0
+
 # 1. Static vs Dynamic model -------------------------------------------------
 st.sidebar.subheader("1. Model type")
 model_type_label = st.sidebar.radio(
@@ -52,12 +59,32 @@ model_type_label = st.sidebar.radio(
 )
 model_type = "dynamic" if model_type_label.startswith("Dynamic") else "static"
 
-# Fixed at the paper's benchmark calibration (Table 1): labor share of income,
-# depreciation rate, and target steady-state hours worked are no longer sidebar
-# controls.
-theta_N = 0.58
-delta_pct = 10.0
-N_target_pct = 20.0
+# 2. Duration ---------------------------------------------------------------
+st.sidebar.subheader("2. Duration of the change")
+permanent = True
+duration_years = 4
+if model_type == "dynamic":
+    duration_label = st.sidebar.radio("Duration", ["Permanent", "Temporary"], key="duration_label")
+    permanent = duration_label == "Permanent"
+    if not permanent:
+        duration_years = st.sidebar.slider("Duration (years)", 1, 20, 4, 1, key="duration_years")
+else:
+    st.sidebar.caption("Under the **Static** model type, permanent and temporary shocks "
+                        "give the identical per-period result (no capital to carry "
+                        "persistence), so this control is hidden.")
+
+# 3. Financing rule -----------------------------------------------------
+st.sidebar.subheader("3. How is the tax collected?")
+financing_label = st.sidebar.radio(
+    "Financing rule",
+    ["Lump-sum (tax revenue collected without distorting labor/capital margins)",
+     "Income tax (tax is a (1-τ) wedge on labor and capital income)"],
+    help="Both options collect the SAME tax revenue: τ = G/Y always. They differ only "
+         "in whether that tax distorts the household's labor-leisure and capital-Euler "
+         "first-order conditions.",
+    key="financing_label",
+)
+financing = "lump_sum" if financing_label.startswith("Lump-sum") else "income_tax"
 
 # 4. theta_G -----------------------------------------------------------------
 st.sidebar.subheader("4. Productive public capital")
@@ -72,46 +99,13 @@ theta_G = st.sidebar.slider(
 st.sidebar.subheader("5. Real interest rate")
 r_pct = st.sidebar.slider("Steady-state real interest rate, r (%/yr)", 1.0, 12.0, 6.5, 0.25, key="r_pct")
 
-# 6 & 7. Baseline fiscal policy: size and composition ------------------------
+# 6. Baseline fiscal policy: size and change ------------------------
 st.sidebar.subheader("6. Baseline government purchases")
 s_G_old_pct = st.sidebar.slider("Baseline total government purchases, G/Y (%)", 5.0, 40.0, 20.0, 1.0, key="s_G_old_pct")
-st.sidebar.caption("Tax rate τ = G/Y always, under both financing rules below (item 3).")
-
-st.sidebar.subheader("7. Composition of G")
-f_IG_pct = st.sidebar.slider("Public investment share of G, Iᴳ/G (%)", 0.0, 100.0, 25.0, 5.0, key="f_IG_pct")
-f_TR_pct = st.sidebar.slider("Transfers share of G, TR/G (%)", 0.0, 100.0 - f_IG_pct, 0.0, 5.0, key="f_TR_pct")
-f_GB_pct = 100.0 - f_IG_pct - f_TR_pct
-
-fig_comp = go.Figure()
-for name, val, color in [("Basic G_B", f_GB_pct, "#6b7280"),
-                          ("Public investment Iᴳ", f_IG_pct, "#16a34a"),
-                          ("Transfers TR", f_TR_pct, "#7c3aed")]:
-    fig_comp.add_trace(go.Bar(y=["G/Y"], x=[val], name=name, orientation="h",
-                               marker_color=color,
-                               text=f"{name.split()[-1]} {val:.0f}%" if val > 3 else "",
-                               textposition="inside", insidetextanchor="middle"))
-fig_comp.update_layout(barmode="stack", height=110, showlegend=False,
-                        margin=dict(l=0, r=0, t=0, b=0),
-                        xaxis=dict(range=[0, 100], showticklabels=False),
-                        yaxis=dict(showticklabels=False))
-st.sidebar.plotly_chart(fig_comp, use_container_width=True, config={"displayModeBar": False})
-
-st.sidebar.subheader("Policy experiment")
-
-# 3. Financing rule ------------------------------------------------------
-financing_label = st.sidebar.radio(
-    "3. How is the tax collected?",
-    ["Lump-sum (tax revenue collected without distorting labor/capital margins)",
-     "Income tax (tax is a (1-τ) wedge on labor and capital income)"],
-    help="Both options collect the SAME tax revenue: τ = G/Y always. They differ only "
-         "in whether that tax distorts the household's labor-leisure and capital-Euler "
-         "first-order conditions.",
-    key="financing_label",
-)
-financing = "lump_sum" if financing_label.startswith("Lump-sum") else "income_tax"
+st.sidebar.caption("Tax rate τ = G/Y always, under both financing rules above (item 3).")
 
 delta_s_G_pct = st.sidebar.slider(
-    "6. Change in government purchases, ΔG/Y (percentage points)", -10.0, 15.0, 5.0, 0.5,
+    "Change in government purchases, ΔG/Y (percentage points)", -10.0, 15.0, 5.0, 0.5,
     help="Expressed relative to the baseline G/Y set above, so the experiment is "
          "never accidentally a zero-size change. Composition shares (item 7) stay fixed.",
     key="delta_s_G_pct")
@@ -121,18 +115,27 @@ if s_G_new_pct != s_G_new_pct_raw:
     st.sidebar.warning(f"New G/Y clamped to {s_G_new_pct:.1f}% (must stay between 1% and 48%).")
 st.sidebar.caption(f"New G/Y = {s_G_old_pct:.1f}% + {delta_s_G_pct:+.1f} = **{s_G_new_pct:.1f}%**")
 
-# 2. Duration ---------------------------------------------------------------
-permanent = True
-duration_years = 4
-if model_type == "dynamic":
-    duration_label = st.sidebar.radio("2. Duration of the change", ["Permanent", "Temporary"], key="duration_label")
-    permanent = duration_label == "Permanent"
-    if not permanent:
-        duration_years = st.sidebar.slider("Duration (years)", 1, 20, 4, 1, key="duration_years")
-else:
-    st.sidebar.caption("2. Duration of the change: under the **Static** model type, "
-                        "permanent and temporary shocks give the identical per-period "
-                        "result (no capital to carry persistence), so this control is hidden.")
+# 7. Composition of G ------------------------------------------------------
+st.sidebar.subheader("7. Composition of G")
+f_IG_pct = st.sidebar.slider("Public investment share of G, Iᴳ/G (%)", 0.0, 100.0, 25.0, 5.0, key="f_IG_pct")
+f_TR_pct = st.sidebar.slider("Transfers share of G, TR/G (%)", 0.0, 100.0 - f_IG_pct, 0.0, 5.0, key="f_TR_pct")
+f_GB_pct = 100.0 - f_IG_pct - f_TR_pct
+st.sidebar.caption(f"Basic purchases G_B/G = **{f_GB_pct:.0f}%** is the residual determined "
+                    f"by the two sliders above (100% − Iᴳ/G − TR/G).")
+
+fig_comp = go.Figure()
+for name, val, color in [("G_B", f_GB_pct, "#6b7280"),
+                          ("Iᴳ", f_IG_pct, "#16a34a"),
+                          ("TR", f_TR_pct, "#7c3aed")]:
+    fig_comp.add_trace(go.Bar(y=["G/Y"], x=[val], name=name, orientation="h",
+                               marker_color=color,
+                               text=f"{name} {val:.0f}%" if val > 3 else "",
+                               textposition="inside", insidetextanchor="middle"))
+fig_comp.update_layout(barmode="stack", height=110, showlegend=False,
+                        margin=dict(l=0, r=0, t=0, b=0),
+                        xaxis=dict(range=[0, 100], showticklabels=False),
+                        yaxis=dict(showticklabels=False))
+st.sidebar.plotly_chart(fig_comp, use_container_width=True, config={"displayModeBar": False})
 
 st.sidebar.divider()
 st.sidebar.markdown(
@@ -379,7 +382,7 @@ st.write(
     "private capital and labor, "
     r"$Y = A\,K^{\theta_K}\,(K^G)^{\theta_G}\,N^{\theta_N}$. "
     "Below: the long-run output effect of a marginal dollar of public investment, for a "
-    "grid of θ_G (the sidebar's θ_G slider is marked with a star)."
+    "grid of θ_G. The row matching the sidebar's current θ_G is highlighted."
 )
 theta_G_grid = np.array([0.0, 0.01, 0.03, 0.05, 0.08, 0.10, 0.15, 0.20, 0.30, 0.40])
 try:
@@ -389,27 +392,32 @@ try:
     tbl = public_investment_long_run(theta_N_v, delta_v, r_v, 1.0, s_G_old_v * f_GB_v, theta_L_pub,
                                       financing == "income_tax", theta_G_grid,
                                       s_IG=max(s_G_old_v * f_IG_v, 1e-4))
-    fig_pub = go.Figure()
-    fig_pub.add_trace(go.Scatter(x=tbl["theta_G"], y=tbl["direct"], mode="lines+markers",
-                                  name="Direct effect (K, N fixed)"))
-    fig_pub.add_trace(go.Scatter(x=tbl["theta_G"], y=tbl["k_adj"], mode="lines+markers",
-                                  name="Private capital adjusts (N fixed)"))
-    fig_pub.add_trace(go.Scatter(x=tbl["theta_G"], y=tbl["both"], mode="lines+markers",
-                                  name="Full general equilibrium (K and N adjust)"))
-    both_at_theta_G = float(np.interp(theta_G_v, tbl["theta_G"], tbl["both"]))
-    fig_pub.add_trace(go.Scatter(x=[theta_G_v], y=[both_at_theta_G], mode="markers",
-                                  marker=dict(size=16, symbol="star", color="#dc2626"),
-                                  name="Current θ_G (sidebar)"))
-    fig_pub.update_layout(title="ΔY / ΔIᴳ as public-capital productivity θ_G rises",
-                           xaxis_title="θ_G (public-capital productivity parameter)",
-                           yaxis_title="Long-run output multiplier", height=420,
-                           legend=dict(orientation="h", y=1.15))
-    st.plotly_chart(fig_pub, use_container_width=True)
+    table4 = pd.DataFrame({
+        "θ_G": tbl["theta_G"],
+        "(i) Direct effect (K, N fixed)": tbl["direct"],
+        "(ii) Private capital adjusts (N fixed)": tbl["k_adj"],
+        "(iii) Full general equilibrium (K and N adjust)": tbl["both"],
+    })
+    closest_idx = int(np.argmin(np.abs(table4["θ_G"] - theta_G_v)))
+
+    def _highlight_current(row):
+        return ["background-color: rgba(220,38,38,0.25)" if row.name == closest_idx else "" for _ in row]
+
+    st.dataframe(
+        table4.style.apply(_highlight_current, axis=1).format({
+            "θ_G": "{:.2f}",
+            "(i) Direct effect (K, N fixed)": "{:.2f}",
+            "(ii) Private capital adjusts (N fixed)": "{:.2f}",
+            "(iii) Full general equilibrium (K and N adjust)": "{:.2f}",
+        }),
+        hide_index=True,
+        use_container_width=True,
+    )
     st.caption("Even mildly productive public capital (θ_G ≈ 0.03-0.05, "
                "Baxter & King's benchmark) generates a long-run multiplier several "
                "times larger than basic government purchases, and most of the effect "
-               "comes from the *supply-side response* of private labor and capital, "
-               "not the direct productivity gain.")
+               "comes from the *supply-side response* of private labor and capital "
+               "(column iii vs. column i), not the direct productivity gain.")
 except Exception as exc:  # noqa: BLE001
     st.error(f"Could not compute Table 4 with the current sidebar settings: {exc}")
 
