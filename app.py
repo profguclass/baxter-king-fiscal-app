@@ -249,8 +249,8 @@ st.dataframe(
     hide_index=True,
     use_container_width=True,
     column_config={
-        left_label: st.column_config.NumberColumn(format="%.4f"),
-        right_label: st.column_config.NumberColumn(format="%.4f"),
+        left_label: st.column_config.NumberColumn(format="%.6f"),
+        right_label: st.column_config.NumberColumn(format="%.6f"),
         "% change": st.column_config.NumberColumn(format="%+.2f%%"),
     },
 )
