@@ -51,45 +51,50 @@ Every Line of Code and Its Mathematics}
 --- the model behind the Streamlit app that replicates and extends Baxter \&
 King (1993, \textit{AER}), ``Fiscal Policy in General Equilibrium'' ---
 pairing each statement with the exact mathematical object it represents,
-cited as \textbf{L}$n$ for line $n$. The current file goes beyond the
-paper's baseline model in one respect the app exposes as a first-class
-control: \textbf{productive public capital} (the paper's Section VI
-extension), with production $Y_t=AK_t^{\theta_K}(K^G_t)^{\theta_G}N_t^{\theta_N}$
-and total government purchases split into three pieces --- basic purchases
-$G_B$, public investment $I^G$ (which accumulates into $K^G$), and lump-sum
-transfers $TR$. Where the code implements a nontrivial derivation (the
-log-linearization of the household's Euler equation and labor-leisure
-condition with public capital included, and the Blanchard--Kahn/King--
-Plosser--Rebelo saddle-path solution via eigendecomposition), that
-derivation is carried out here from the model's first-order conditions,
-term by term, so that every coefficient in the code is traceable to an
-economic equation rather than merely restated.
+cited as \textbf{L}$n$ for line $n$. The model goes beyond the paper's
+baseline in one respect the app exposes as a first-class control:
+\textbf{productive public capital} (the paper's Section VI extension), with
+production $Y_t=AK_t^{\theta_K}(K^G_t)^{\theta_G}N_t^{\theta_N}$. There is no
+separate ``basic purchases'' category (it was removed, since the utility
+function never values government consumption directly): total government
+spending splits into just public investment $I^G$ (resource-using,
+accumulates into $K^G$) and lump-sum transfers $G_T$ (resource-neutral).
+Where the code implements a nontrivial derivation (the log-linearization of
+the household's Euler equation and labor-leisure condition, and the
+Blanchard--Kahn/King--Plosser--Rebelo saddle-path solution via
+eigendecomposition), that derivation is carried out here from the model's
+first-order conditions, term by term. Section~\ref{sec:table4} additionally
+documents \texttt{public\_investment\_long\_run}'s replication of the
+paper's actual Table 4 (verified line-for-line against the published table),
+including a genuine numerical instability that this function must avoid
+(public capital is an \emph{essential} input whenever $\theta_G>0$, so
+naively perturbing $I^G$ near $0$ makes the finite difference blow up).
 \end{abstract}
 
 \tableofcontents
 
-\section{Module docstring and the model in one page (L1--L53)}
+\section{Module docstring and the model in one page (L1--L55)}
 
-The docstring (L1--L44) states the model compactly:
+The docstring (L1--L46) states the model compactly:
 \begin{align}
 u_t &= \log C_t + \theta_L\log L_t, \qquad L_t = 1-N_t \tag{preferences}\\
 Y_t &= A\,K_t^{\theta_K}(K^G_t)^{\theta_G}N_t^{\theta_N}, \qquad \theta_K=1-\theta_N \tag{technology}\\
 K_{t+1} &= (1-\delta)K_t+I_t, \qquad K^G_{t+1}=(1-\delta)K^G_t+I^G_t \tag{capital accum.}\\
-Y_t &= C_t+I_t+G_{B,t}+I^G_t \tag{resource constraint}\\
-\tau_t Y_t &= G_{B,t}+I^G_t+TR_t, \qquad \tau_t=\frac{G_{B,t}+I^G_t+TR_t}{Y_t} \tag{government budget}
+Y_t &= C_t+I_t+I^G_t \tag{resource constraint}\\
+\tau_t Y_t &= I^G_t+G_{T,t}, \qquad \tau_t=\frac{I^G_t+G_{T,t}}{Y_t} \tag{government budget}
 \end{align}
-with two financing rules for a change in total government purchases: both
-set $\tau_t$ by the \emph{same} formula above; they differ only in whether
-that tax is a genuine wedge on the household's factor income
+with two financing rules for a change in total government spending: both set
+$\tau_t$ by the \emph{same} formula above; they differ only in whether that
+tax is a genuine wedge on the household's factor income
 (\textbf{income\_tax}, the paper's original ``distortionary''/GRH channel)
-or a non-distorting poll tax for the same revenue (\textbf{lump\_sum}). Two
-solution objects are provided: an exact closed-form \texttt{steady\_state}
-(Section~\ref{sec:ss}) and a log-linearized \texttt{simulate\_transition}
-(Sections \ref{sec:loglinear}--\ref{sec:transition}). All quantities are
-\emph{great ratios} --- shares of output/the time endowment --- so the
-model is scale-free (L41--43).
+or leaves it untouched (\textbf{lump\_sum}, a non-distorting poll tax for
+the same revenue). Two solution objects are provided: an exact closed-form
+\texttt{steady\_state} (Section~\ref{sec:ss}) and a log-linearized
+\texttt{simulate\_transition} (Sections \ref{sec:loglinear}--\ref{sec:transition}).
+All quantities are \emph{great ratios} --- shares of output/the time
+endowment --- so the model is scale-free (L43--45).
 
-\begin{lstlisting}[firstnumber=46]
+\begin{lstlisting}[firstnumber=48]
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Optional
@@ -97,89 +102,80 @@ import numpy as np
 Financing = Literal["lump_sum", "income_tax"]
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L46}] Postpones type-annotation evaluation (a typing
+\item[\textbf{L48}] Postpones type-annotation evaluation (a typing
 convenience only).
-\item[\textbf{L48}] Imports \texttt{dataclass}, used for \texttt{SteadyState},
+\item[\textbf{L50}] Imports \texttt{dataclass}, used for \texttt{SteadyState},
 \texttt{TransitionPath}, \texttt{PolicyExperiment}.
-\item[\textbf{L49}] Imports \texttt{Literal} (used at L53 to restrict the
+\item[\textbf{L51}] Imports \texttt{Literal} (used at L55 to restrict the
 \texttt{financing} argument to exactly two string values) and
 \texttt{Optional} (used for \texttt{PolicyExperiment} fields that can be
 \texttt{None} before a path is computed).
-\item[\textbf{L51}] NumPy --- the only numerical dependency; the saddle-path
+\item[\textbf{L53}] NumPy --- the only numerical dependency; the saddle-path
 solver (Section~\ref{sec:saddle}) uses \texttt{numpy.linalg.eig} for a
 $2\times2$ eigendecomposition, the only linear-algebra call in the whole
 project.
-\item[\textbf{L53}] Defines \texttt{Financing} as a type restricted to the
-two literal strings \texttt{"lump\_sum"} and \texttt{"income\_tax"} ---
-used as a type hint on \texttt{run\_experiment} (L414), so a typo is
-caught by a type checker even though Python itself would not raise an
-error until a comparison silently fails to match.
+\item[\textbf{L55}] Defines \texttt{Financing} as a type restricted to the
+two literal strings \texttt{"lump\_sum"} and \texttt{"income\_tax"}.
 \end{itemize}
 
-\section{\texttt{\_supply\_side\_impl}: the price system with public capital (L60--L91)}
+\section{\texttt{\_supply\_side\_impl}: the price system with public capital (L62--L98)}
 \label{sec:supply}
 
-\begin{lstlisting}[firstnumber=60]
+\begin{lstlisting}[firstnumber=62]
 def _supply_side_impl(theta_N: float, delta: float, r: float, A: float, tau: float,
                        theta_G: float, s_IG: float, distortionary: bool) -> dict:
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L60--L61}] Signature: seven primitives (five original plus
+\item[\textbf{L62--L63}] Signature: seven primitives (five original plus
 $\theta_G$, the public-capital productivity parameter, and $s_{I^G}$, the
 public-investment share of output) plus a financing flag, out comes a
-dictionary of derived prices/ratios. This function embodies the model's
-\emph{intratemporal, labor-independent} block: because production is
-constant-returns in $(K,N)$ for any \emph{given} level of public capital
-$K^G$, the capital/labor ratio $\kappa=K/N$ is pinned down by the
-capital-Euler condition alone, without yet knowing the level of labor
-supply $N$ --- that is solved separately in Section~\ref{sec:calib}.
+dictionary of derived prices/ratios. Because production is constant-returns
+in $(K,N)$ for any \emph{given} level of public capital $K^G$, the
+capital/labor ratio $\kappa=K/N$ is pinned down by the capital-Euler
+condition alone, without yet knowing labor supply $N$ (solved separately in
+Section~\ref{sec:calib}).
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=62]
+\begin{lstlisting}[firstnumber=64]
 theta_K = 1.0 - theta_N
-wedge = (1.0 - tau) if distortionary else 1.0
-if wedge <= 0:
-    raise ValueError("Invalid parameters: tax wedge (1-tau) must be positive under Income Tax financing.")
+tax_factor = (1.0 - tau) if distortionary else 1.0
+if tax_factor <= 0:
+    raise ValueError("Invalid parameters: (1-tau) must be positive under Income Tax financing.")
 
-kappa = ((wedge * theta_K * A) / (r + delta)) ** (1.0 / (1.0 - theta_K))
+kappa = ((tax_factor * theta_K * A) / (r + delta)) ** (1.0 / (1.0 - theta_K))
 alpha = A * kappa ** theta_K  # will be rescaled by KG^theta_G below
 KG = 0.0
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L62}] $\theta_K=1-\theta_N$, capital's Cobb--Douglas share.
-\item[\textbf{L63}] The tax wedge on the household's factor income:
-$\omega\equiv(1-\tau)$ under \texttt{income\_tax} financing, $\omega\equiv1$
-under \texttt{lump\_sum} financing (the poll tax leaves the marginal
-after-tax return to working/saving untouched). This single scalar is
-\emph{the} difference between the two financing rules everywhere in the
-file --- both set the same $\tau$ (Section~\ref{sec:ss}), but only
-\texttt{income\_tax} lets $\tau$ enter here.
-\item[\textbf{L64--L65}] Guards against $\omega\le0$ (a tax rate $\ge100\%$
-under income-tax financing, which would make after-tax factor income
-non-positive).
-\item[\textbf{L67}] Solves the household's after-tax capital-Euler
-condition for the capital/labor ratio, \emph{ignoring public capital's
-contribution to the marginal product for now} (that correction is applied
-in the fixed-point loop below when $\theta_G>0$):
-\eq{ \omega\,\theta_K\, A\,\kappa^{\theta_K-1} = r+\delta \label{eq:euler-ss0} }
---- the steady-state statement that the after-tax marginal product of
-capital equals the required gross return $r+\delta$. Solving for $\kappa$:
-$\kappa = \big(\omega\theta_K A/(r+\delta)\big)^{1/(1-\theta_K)}$.
-\item[\textbf{L68}] Average product of labor \emph{holding $K^G$ at its
-$\theta_G=0$ value}, $\alpha\equiv Y/N = A\kappa^{\theta_K}$ (substitute
-$K=\kappa N$ into $Y=AK^{\theta_K}N^{\theta_N}$, i.e.\ the $K^G$-free case,
-and divide by $N$); the comment flags that this gets rescaled below.
-\item[\textbf{L69}] Initializes $K^G=0$, the value used unless the
-fixed-point loop below runs.
+\item[\textbf{L64}] $\theta_K=1-\theta_N$, capital's Cobb--Douglas share.
+\item[\textbf{L65}] The tax wedge on the household's factor income:
+$(1-\tau)$ under \texttt{income\_tax} financing, $1$ under \texttt{lump\_sum}
+financing. This single scalar is \emph{the} difference between the two
+financing rules everywhere in the file --- both set the same $\tau$
+(Section~\ref{sec:ss}), but only \texttt{income\_tax} lets it enter as a
+factor-income wedge here.
+\item[\textbf{L66--L67}] Guards against a tax rate $\ge100\%$ under
+income-tax financing.
+\item[\textbf{L69}] Solves the household's after-tax capital-Euler condition
+for the capital/labor ratio, \emph{ignoring public capital's contribution
+for now} (corrected in the fixed-point loop below when $\theta_G>0$):
+\eq{ (1-\tau)\,\theta_K\, A\,\kappa^{\theta_K-1} = r+\delta \label{eq:euler-ss0} }
+(or without the $(1-\tau)$ factor under lump-sum). Solving for $\kappa$:
+$\kappa = \big(\text{tax\_factor}\cdot\theta_K A/(r+\delta)\big)^{1/(1-\theta_K)}$.
+\item[\textbf{L70}] Average product of labor \emph{holding $K^G$ at its
+$\theta_G=0$ value}, $\alpha\equiv Y/N = A\kappa^{\theta_K}$; gets rescaled
+below when public capital is present and productive.
+\item[\textbf{L71}] Initializes $K^G=0$, the value used unless one of the
+two branches below overrides it.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=70]
+\begin{lstlisting}[firstnumber=72]
 if theta_G > 0 and s_IG > 0:
     alpha_ppN = A * kappa ** theta_K  # Y/N ignoring KG, will multiply by KG^theta_G
     alpha_guess = alpha_ppN
     for _ in range(200):
         KG_ppN = s_IG * alpha_guess / delta  # KG per unit of N
-        base = (wedge * theta_K * A * KG_ppN ** theta_G) / (r + delta)
+        base = (tax_factor * theta_K * A * KG_ppN ** theta_G) / (r + delta)
         kappa = base ** (1.0 / (1.0 - theta_K))
         alpha_new = A * kappa ** theta_K * KG_ppN ** theta_G
         if abs(alpha_new - alpha_guess) < 1e-12:
@@ -188,75 +184,72 @@ if theta_G > 0 and s_IG > 0:
         alpha_guess = alpha_new
     alpha = alpha_guess
     KG = s_IG * alpha / delta  # KG per unit of N
+elif s_IG > 0:
+    KG = s_IG * alpha / delta
 \end{lstlisting}
 \label{sec:kgfixedpoint}
 \begin{itemize}
-\item[\textbf{L70}] Only run the (more expensive) fixed-point iteration
-when public capital is actually productive ($\theta_G>0$) \emph{and}
-present ($s_{I^G}>0$); otherwise $K^G\equiv0$ from L69 and the block below
-is skipped entirely, so $\theta_G=0$ collapses this function exactly to
-the paper's baseline model with zero extra cost.
-\item[\textbf{Why a fixed point is needed.}] With public capital, the
-capital-Euler condition \eqref{eq:euler-ss0} generalizes to
-\eq{ \omega\,\theta_K\,A\,(K^G/N)^{\theta_G}\,\kappa^{\theta_K-1} = r+\delta, \label{eq:euler-ss-kg}}
-but $K^G$ itself is pinned down by its own steady-state accumulation
-identity $K^G=I^G/\delta$ (from $K^G_{t+1}=(1-\delta)K^G_t+I^G_t$ at a
-steady state), and $I^G=s_{I^G}Y$, and $Y$ depends on $\kappa$ through
-\eqref{eq:euler-ss-kg} --- a circular dependency solved by iterating on
-$\alpha\equiv Y/N$ until it stops moving. All quantities here are kept
-\emph{per unit of $N$} (denoted with a \texttt{\_ppN} suffix) because $N$
-itself is not yet known at this stage (Section~\ref{sec:calib} solves for
-$N$ only afterward) and the ratio $K^G/N$ is scale-invariant in $N$, so the
-iteration is well posed without it.
-\item[\textbf{L71--L72}] Initializes the iteration guess $\alpha_{\text{guess}}$
-at the $K^G=0$ value of $\alpha$ from L68.
-\item[\textbf{L73}] Up to $200$ fixed-point sweeps (in practice this
-converges in a handful of iterations for any economically sensible
-calibration).
-\item[\textbf{L74}] $K^G/N \equiv s_{I^G}\,\alpha_{\text{guess}}/\delta$,
-from $K^G=I^G/\delta=s_{I^G}Y/\delta$ divided by $N$.
-\item[\textbf{L75}] Recomputes $\kappa$ from \eqref{eq:euler-ss-kg} using
-the current $K^G/N$ guess: $\kappa=\big(\omega\theta_K A\,(K^G/N)^{\theta_G}/(r+\delta)\big)^{1/(1-\theta_K)}$.
-\item[\textbf{L76}] Recomputes $\alpha_{\text{new}}=A\kappa^{\theta_K}(K^G/N)^{\theta_G}$,
-the full public-capital-augmented average product of labor.
-\item[\textbf{L77--L79}] Stops early once the guess has converged to
-$10^{-12}$; otherwise updates the guess and continues.
-\item[\textbf{L80--L81}] After the loop, $\alpha$ and $K^G/N$ (denoted
-\texttt{KG} in the code, a slight abuse --- it is really $K^G$ per unit of
-$N$ at this point, made a true level once multiplied by $N$ in
-\texttt{steady\_state}, Section~\ref{sec:ss}) are finalized at their
-fixed-point values.
+\item[\textbf{L72}] Only run the (more expensive) fixed-point iteration when
+public capital is actually productive ($\theta_G>0$) \emph{and} present
+($s_{I^G}>0$); when $\theta_G=0$ (L90--91, see the box below) the physical
+stock is still computed, just without any feedback into $\kappa,\alpha$.
+\item[\textbf{Why a fixed point is needed when $\theta_G>0$.}] The
+capital-Euler condition generalizes to
+\eq{ \text{tax\_factor}\cdot\theta_K\,A\,(K^G/N)^{\theta_G}\,\kappa^{\theta_K-1} = r+\delta, \label{eq:euler-ss-kg}}
+but $K^G$ is itself pinned down by $K^G=I^G/\delta$ (steady-state
+accumulation identity), and $I^G=s_{I^G}Y$, and $Y$ depends on $\kappa$
+through \eqref{eq:euler-ss-kg} --- circular, solved by iterating on
+$\alpha\equiv Y/N$ until it stops moving. Quantities are kept \emph{per unit
+of $N$} (\texttt{\_ppN} suffix) since $N$ is not yet known at this stage.
+\item[\textbf{L73--L82}] The fixed-point sweep: L74--75 initialize the
+guess; L76 up to $200$ iterations; L77 recomputes $K^G/N$; L78 recomputes
+$\kappa$ from \eqref{eq:euler-ss-kg}; L79 recomputes
+$\alpha_{\text{new}}=A\kappa^{\theta_K}(K^G/N)^{\theta_G}$; L80--82
+convergence check.
+\item[\textbf{L83--L84}] Finalizes $\alpha$ and $K^G$ (per unit of $N$) at
+their fixed-point values.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=88]
+\begin{notebox}
+\textbf{L85--L86: public capital must still accumulate at $\theta_G=0$.} An
+earlier version of this function set $K^G\equiv0$ whenever $\theta_G\le0$,
+conflating ``not productive'' with ``does not exist.'' But $K^G$'s law of
+motion, $K^G_{t+1}=(1-\delta)K^G_t+I^G_t$, does not care whether $\theta_G$
+is $0$ --- at a steady state $K^G=I^G/\delta$ regardless, so a positive
+public-investment share $s_{I^G}$ should always produce a nonzero physical
+capital stock, even when that stock has no effect on production. This bug
+was visible in the app: with $\theta_G=0$ and a large public-investment
+composition share, the ``Public capital $K^G$'' row of the steady-state
+table stayed at $0.000000$ while ``Public investment $I^G$'' was clearly
+positive. The \texttt{elif s\_IG > 0} branch (L85--86) fixes this: no fixed
+point is needed here (unlike the $\theta_G>0$ branch above) because
+$(K^G)^0=1$ means $K^G$ cannot feed back into $\alpha,\kappa$ at all when
+$\theta_G=0$, so $KG=s_{I^G}\alpha/\delta$ can be computed directly from the
+already-known $\alpha$.
+\end{notebox}
+
+\begin{lstlisting}[firstnumber=95]
 w = theta_N * alpha
-q = wedge * theta_K * alpha / kappa
+q = tax_factor * theta_K * alpha / kappa
 s_I = delta * kappa / alpha
-return dict(theta_K=theta_K, kappa=kappa, alpha=alpha, w=w, q=q, s_I=s_I, KG=KG, wedge=wedge)
+return dict(theta_K=theta_K, kappa=kappa, alpha=alpha, w=w, q=q, s_I=s_I, KG=KG, tax_factor=tax_factor)
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L88}] The pre-tax real wage, equal to the marginal product of
-labor: $w=\theta_N\alpha=\theta_N\,Y/N$ (unaffected in form by public
-capital, since $K^G$ enters $Y$ multiplicatively and Cobb--Douglas shares
-are unchanged).
-\item[\textbf{L89}] The after-tax rental rate on capital,
-$q=\omega\theta_K\alpha/\kappa$. Since $\alpha/\kappa=Y/K$, this is
-$q=\omega\theta_K Y/K=\omega\cdot\text{MPK}$ --- and by construction
-(because $\kappa$ was solved from \eqref{eq:euler-ss-kg}), $q\equiv
-r+\delta$ exactly.
-\item[\textbf{L90}] The steady-state investment share of output,
-$s_I\equiv I/Y=\delta K/Y=\delta\kappa/\alpha$, using $I=\delta K$ at a
-steady state.
-\item[\textbf{L91}] Packages eight derived quantities, including the
-\texttt{wedge} $\omega$ itself (reused by every caller so the financing
-distinction never has to be recomputed) and \texttt{KG} (public capital
-per unit of $N$, possibly still $0$).
+\item[\textbf{L95}] The pre-tax real wage, $w=\theta_N\alpha=\theta_N\,Y/N$.
+\item[\textbf{L96}] The after-tax rental rate,
+$q=\text{tax\_factor}\cdot\theta_K\alpha/\kappa=\text{tax\_factor}\cdot\text{MPK}$
+--- by construction (since $\kappa$ was solved from
+\eqref{eq:euler-ss-kg}), $q\equiv r+\delta$ exactly.
+\item[\textbf{L97}] $s_I\equiv I/Y=\delta K/Y=\delta\kappa/\alpha$.
+\item[\textbf{L98}] Packages eight derived quantities, including
+\texttt{tax\_factor} itself (reused by every caller) and \texttt{KG}
+(public capital per unit of $N$).
 \end{itemize}
 
-\section{\texttt{SteadyState} and its constructors (L98--L198)}
+\section{\texttt{SteadyState} and its constructors (L105--L200)}
 \label{sec:ss}
 
-\begin{lstlisting}[firstnumber=98]
+\begin{lstlisting}[firstnumber=105]
 @dataclass
 class SteadyState:
     theta_N: float
@@ -267,10 +260,9 @@ class SteadyState:
     A: float
     tau: float
     theta_L: float
-    s_G: float       # total government purchases share (G_B+IG+TR)/Y
-    s_GB: float
+    s_G: float       # total government spending share (IG+G_T)/Y
     s_IG: float
-    s_TR: float
+    s_GT: float
     distortionary: bool
     kappa: float
     alpha: float
@@ -285,320 +277,217 @@ class SteadyState:
     KG: float
     C: float
     I: float
-    G: float          # total government purchases G_B+IG+TR
-    GB: float
+    G: float          # total government spending IG+G_T
     IG: float
-    TR: float
+    GT: float
 
     def as_dict(self) -> dict:
         return self.__dict__.copy()
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L98--L131}] A plain dataclass holding every parameter
-\emph{and} every derived great ratio and level at one steady state: the six
-primitives ($\theta_N,\delta,r,A,\tau,\theta_G$), the calibrated preference
-parameter $\theta_L$, the government-purchases composition
-($s_G,s_{GB},s_{IG},s_{TR}$ --- total share and its three pieces) and the
-financing flag \texttt{distortionary}, the seven \texttt{\_supply\_side\_impl}
-outputs ($\kappa,\alpha,w,q,s_I,s_C,$ note $s_C$ is added here, computed
-from $s_G$, not returned by that function itself), and the levels
-($N,L,Y,K,K^G,C,I,G,G_B,I^G,TR$).
-\item[\textbf{L131--L132}] \texttt{as\_dict} returns a shallow copy of the
-instance's attribute dictionary --- used by \texttt{test\_model.py} to
-loop over and print every field by name without hardcoding the field list
-twice.
+\item[\textbf{L105--L136}] A plain dataclass holding every parameter
+\emph{and} every derived great ratio and level at one steady state: six
+primitives, the calibrated $\theta_L$, the two-way composition
+($s_G,s_{IG},s_{GT}$) and the financing flag, the seven
+\texttt{\_supply\_side\_impl} outputs ($\kappa,\alpha,w,q,s_I,s_C$ --- $s_C$
+is added here, not returned by that function itself), and the levels
+($N,L,Y,K,K^G,C,I,G,I^G,G_T$).
+\item[\textbf{L136--L137}] \texttt{as\_dict} returns a shallow copy of the
+attribute dictionary --- used by \texttt{test\_model.py} to print every
+field by name.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=135]
+\begin{lstlisting}[firstnumber=140]
 def calibrate_theta_L(theta_N: float, delta: float, r: float, A: float, theta_G: float,
-                       s_GB: float, s_IG: float, s_TR: float, distortionary: bool,
+                       s_IG: float, s_GT: float, distortionary: bool,
                        N_target: float) -> float:
-    tau = s_GB + s_IG + s_TR
+    tau = s_IG + s_GT
     supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, distortionary)
-    s_GR = s_GB + s_IG
-    s_C = 1.0 - supply["s_I"] - s_GR
+    s_C = 1.0 - supply["s_I"] - s_IG
     if s_C <= 0:
         raise ValueError("Government share too large: steady-state consumption share <= 0.")
     N = N_target
-    theta_L = supply["wedge"] * theta_N * (1.0 - N) / (s_C * N)
+    theta_L = supply["tax_factor"] * theta_N * (1.0 - N) / (s_C * N)
     if theta_L <= 0:
         raise ValueError("Implied theta_L <= 0; adjust N_target or the tax/spending settings.")
     return theta_L
 \end{lstlisting}
 \label{sec:calib}
 \begin{itemize}
-\item[\textbf{L135--L137}] Signature: given the technology/policy
-primitives (now including $\theta_G$ and the three-way composition
-$s_{GB},s_{IG},s_{TR}$) plus a target labor supply $\bar N\equiv$
-\texttt{N\_target}, returns the leisure-preference weight $\theta_L$ that
-makes steady-state labor supply equal $\bar N$.
-\item[\textbf{L140}] The tax rate is \emph{defined} as total government
-purchases over output, $\tau=s_{GB}+s_{IG}+s_{TR}$ --- this is the
-government-budget identity from the docstring, holding identically
-regardless of financing rule.
-\item[\textbf{L141}] Calls Section~\ref{sec:supply}'s function to get
-$s_I$ and $\omega$ (\texttt{wedge}).
-\item[\textbf{L142}] $s_{GR}\equiv s_{GB}+s_{IG}$, the \emph{resource-using}
-share of government purchases --- deliberately excluding $s_{TR}$, since
-transfers are a pure redistribution that does not appear in the economy's
-resource constraint (they cancel out of the household budget, as
-explained in Section~\ref{sec:policybudget}).
-\item[\textbf{L143}] The consumption share, $s_C=1-s_I-s_{GR}$, from the
-resource constraint $1=s_C+s_I+s_{GR}$ (dividing $Y=C+I+G_B+I^G$ through
-by $Y$; note $TR$ is absent).
-\item[\textbf{L144--L145}] Guards against $s_C\le0$.
-\item[\textbf{L146}] Aliases $N\leftarrow$ \texttt{N\_target}.
-\item[\textbf{L147}] The calibration formula. It comes from the
-labor-leisure first-order condition
-\eq{ \theta_L\,\frac{C}{L} = \omega\,w \label{eq:foc-labor} }
-(the marginal rate of substitution between consumption and leisure equals
-the after-tax wage --- $\omega$ generalizes the paper's $(1-\tau)$ to also
-cover the lump-sum case, where $\omega=1$), solved for $\theta_L$ using
-$w=\theta_N\alpha$, $C=s_C Y$, $\alpha=Y/N$, and $L=1-N$:
-\eq{ \theta_L = \frac{\omega\,w\,L}{C} = \frac{\omega\,\theta_N(1-N)}{s_C N}. }
-This is exactly L147. This step \emph{calibrates a preference parameter}
-to hit a labor-supply target --- it does not yet compute $Y,K,$ or any
-level; those come from \texttt{steady\_state} below using this $\theta_L$
-as an input.
-\item[\textbf{L148--L149}] Guards against a non-positive $\theta_L$.
+\item[\textbf{L140--L142}] Signature: given the technology/policy primitives
+and a target labor supply $\bar N\equiv$\texttt{N\_target}, returns the
+leisure-preference weight $\theta_L$ that makes steady-state labor supply
+equal $\bar N$.
+\item[\textbf{L144}] $\tau=s_{IG}+s_{GT}$ --- the government-budget
+identity, holding regardless of financing rule.
+\item[\textbf{L146}] Calls Section~\ref{sec:supply}'s function.
+\item[\textbf{L147}] $s_C=1-s_I-s_{IG}$ --- note only $s_{IG}$ (not
+$s_{GT}$) reduces the resource constraint, since transfers are rebated to
+households rather than spent on goods.
+\item[\textbf{L148--L149}] Guards against $s_C\le0$.
+\item[\textbf{L151}] The calibration formula, from the labor-leisure FOC
+\eq{ \theta_L\,\frac{C}{L} = \text{tax\_factor}\cdot w \label{eq:foc-labor} }
+solved for $\theta_L$ using $w=\theta_N\alpha$, $C=s_C Y$, $\alpha=Y/N$,
+$L=1-N$:
+\eq{ \theta_L = \frac{\text{tax\_factor}\cdot\theta_N(1-N)}{s_C N}. }
+\item[\textbf{L152--L153}] Guards against a non-positive $\theta_L$.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=153]
+\begin{lstlisting}[firstnumber=157]
 def steady_state(theta_N: float, delta: float, r: float, A: float, theta_G: float,
-                  s_GB: float, s_IG: float, s_TR: float, distortionary: bool,
+                  s_IG: float, s_GT: float, distortionary: bool,
                   theta_L: float) -> SteadyState:
-    tau = s_GB + s_IG + s_TR
+    tau = s_IG + s_GT
     s_G = tau
     supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, distortionary)
     s_I = supply["s_I"]
-    s_GR = s_GB + s_IG
-    s_C = 1.0 - s_I - s_GR
+    s_C = 1.0 - s_I - s_IG
     if s_C <= 0:
         raise ValueError("Government share too large: steady-state consumption share <= 0.")
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L153--L155}] Signature: the same primitives plus $\theta_L$
-(now taken as \emph{given}, not calibrated), returning a full
-\texttt{SteadyState}.
-\item[\textbf{L158--L165}] Re-derives $\tau,s_G,s_I,s_{GR},s_C$ exactly as
-in Section~\ref{sec:calib} (this function is called both directly and,
-with the just-calibrated $\theta_L$, immediately after
-\texttt{calibrate\_theta\_L} inside \texttt{run\_experiment}).
+\item[\textbf{L157--L159}] Signature: same primitives plus $\theta_L$ (now
+given, not calibrated), returning a full \texttt{SteadyState}.
+\item[\textbf{L162--L168}] Re-derives $\tau,s_G,s_I,s_C$ as in
+Section~\ref{sec:calib}.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=167]
-wedge = supply["wedge"]
-N = wedge * theta_N / (theta_L * s_C + wedge * theta_N)
+\begin{lstlisting}[firstnumber=170]
+tax_factor = supply["tax_factor"]
+N = tax_factor * theta_N / (theta_L * s_C + tax_factor * theta_N)
 if not (0 < N < 1):
     raise ValueError(f"Implied labor supply N={N:.3f} is outside (0,1).")
 L = 1.0 - N
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L168}] Solves the same FOC \eqref{eq:foc-labor} for $N$
-directly, treating $\theta_L$ as known. From
-$\theta_L s_C N=\omega\theta_N(1-N)$, collecting $N$ terms:
-\eq{ N\big[\theta_L s_C+\omega\theta_N\big]=\omega\theta_N
-     \ \Longrightarrow\ N=\frac{\omega\theta_N}{\theta_L s_C+\omega\theta_N}. }
-This is the algebraic inverse of L147: plugging L147's $\theta_L$ back
-into this formula returns exactly $N=$\texttt{N\_target}, which is
-precisely what makes \texttt{calibrate\_theta\_L} a correct calibration
-(verified numerically by \texttt{test\_model.py}'s ``check N == N\_target''
-line).
-\item[\textbf{L169--L170}] Guards against an economically infeasible labor
-supply outside $(0,1)$.
-\item[\textbf{L171}] $L=1-N$, steady-state leisure.
+\item[\textbf{L171}] Solves \eqref{eq:foc-labor} for $N$ directly: from
+$\theta_L s_C N=\text{tax\_factor}\cdot\theta_N(1-N)$,
+\eq{ N=\frac{\text{tax\_factor}\cdot\theta_N}{\theta_L s_C+\text{tax\_factor}\cdot\theta_N}. }
+The algebraic inverse of L151 --- plugging L151's $\theta_L$ back in
+returns exactly $N=$\texttt{N\_target}.
+\item[\textbf{L172--L173}] Guards against infeasible labor supply.
+\item[\textbf{L174}] $L=1-N$.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=173]
+\begin{lstlisting}[firstnumber=176]
 Y = supply["alpha"] * N
 K = supply["kappa"] * N
 KG = supply["KG"] * N
 C = s_C * Y
 I = s_I * Y
-GB = s_GB * Y
 IG = s_IG * Y
-TR = s_TR * Y
-G = GB + IG + TR
+GT = s_GT * Y
+G = IG + GT
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L173}] $Y=\alpha N$ (recovering the output \emph{level} from
-the average-product ratio and the now-known $N$).
-\item[\textbf{L174}] $K=\kappa N$, similarly.
-\item[\textbf{L175}] $K^G=(K^G/N)\cdot N$ --- converts the per-$N$ public
-capital ratio computed in Section~\ref{sec:kgfixedpoint} into a true
-level, now that $N$ is known.
-\item[\textbf{L176--L177}] $C=s_C Y$, $I=s_I Y$.
-\item[\textbf{L178--L180}] $G_B=s_{GB}Y$, $I^G=s_{IG}Y$, $TR=s_{TR}Y$ ---
-the three composition shares converted to levels.
-\item[\textbf{L181}] $G=G_B+I^G+TR$, total government purchases; note by
-construction $C+I+G_B+I^G=(s_C+s_I+s_{GR})Y=Y$ (the resource constraint
-holds exactly, and $TR$ correctly plays no role in it).
+\item[\textbf{L176--L178}] $Y=\alpha N$, $K=\kappa N$, and $K^G=(K^G/N)\cdot
+N$ --- converting the per-$N$ ratios from Section~\ref{sec:kgfixedpoint}
+into true levels now that $N$ is known.
+\item[\textbf{L179--L180}] $C=s_C Y$, $I=s_I Y$.
+\item[\textbf{L181--L182}] $I^G=s_{IG}Y$, $G_T=s_{GT}Y$.
+\item[\textbf{L183}] $G=I^G+G_T$, total government spending; by
+construction $C+I+I^G=(s_C+s_I+s_{IG})Y=Y$ exactly.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=183]
+\begin{lstlisting}[firstnumber=185]
 return SteadyState(
     theta_N=theta_N, theta_K=supply["theta_K"], theta_G=theta_G, delta=delta, r=r, A=A,
-    tau=tau, theta_L=theta_L, s_G=s_G, s_GB=s_GB, s_IG=s_IG, s_TR=s_TR,
+    tau=tau, theta_L=theta_L, s_G=s_G, s_IG=s_IG, s_GT=s_GT,
     distortionary=distortionary, kappa=supply["kappa"], alpha=supply["alpha"],
     w=supply["w"], q=supply["q"], s_I=s_I, s_C=s_C, N=N, L=L, Y=Y, K=K, KG=KG, C=C, I=I,
-    G=G, GB=GB, IG=IG, TR=TR,
+    G=G, IG=IG, GT=GT,
 )
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L183--L189}] Assembles all thirty fields into the returned
-\texttt{SteadyState}.
+\item[\textbf{L185--L191}] Assembles all twenty-eight fields into the
+returned \texttt{SteadyState}.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=192]
+\begin{lstlisting}[firstnumber=194]
 def steady_state_for_policy(theta_N: float, delta: float, r: float, A: float, theta_G: float,
-                             s_G_total: float, f_GB: float, f_IG: float, f_TR: float,
+                             s_G_total: float, f_IG: float, f_GT: float,
                              theta_L: float, distortionary: bool) -> SteadyState:
-    s_GB, s_IG, s_TR = s_G_total * f_GB, s_G_total * f_IG, s_G_total * f_TR
-    return steady_state(theta_N, delta, r, A, theta_G, s_GB, s_IG, s_TR, distortionary, theta_L)
+    s_IG, s_GT = s_G_total * f_IG, s_G_total * f_GT
+    return steady_state(theta_N, delta, r, A, theta_G, s_IG, s_GT, distortionary, theta_L)
 \end{lstlisting}
 \label{sec:policybudget}
 \begin{itemize}
-\item[\textbf{L192--L194}] Signature: instead of taking the three
-composition levels $(s_{GB},s_{IG},s_{TR})$ directly, this convenience
-wrapper takes a \emph{total} government-purchases ratio $s_{G,\text{total}}$
-and fixed \emph{composition fractions} $f_{GB},f_{IG},f_{TR}$ (summing to
-$1$) that describe how that total is split. This is the function the app
-calls once for the baseline policy and once for the counterfactual policy,
-holding the composition fractions fixed across the two (so a ``ΔG/Y''
-experiment changes the \emph{size} of government at a \emph{fixed} mix;
-see the box below on why moving \emph{only} the composition or financing
-sliders, with ΔG/Y left at 0, does not by itself register as a policy
-change under this convention, and how the app's other panels are the
-right place to see those effects).
-\item[\textbf{L196}] $s_{GB}=s_{G,\text{total}}f_{GB}$, and similarly for
-$s_{IG},s_{TR}$ --- splitting the total by the given fractions.
-\item[\textbf{L197}] Calls Section~\ref{sec:ss}'s \texttt{steady\_state}
-with the resolved composition levels.
-\item[\textbf{On the household budget and why $TR$ drops out of the
-resource constraint.}] The government budget is $\tau_tY_t=G_{B,t}+I^G_t+TR_t$
-(the docstring's identity, re-derived at L158/L140). The household's
-budget constraint differs by financing rule:
+\item[\textbf{L194--L196}] Signature: takes a \emph{total}
+government-spending ratio $s_{G,\text{total}}$ and fixed composition
+fractions $f_{IG},f_{GT}$ (summing to $1$), rather than the two composition
+levels directly. This is the function the app calls once for the baseline
+policy and once for the counterfactual, holding the composition fractions
+fixed across the two.
+\item[\textbf{L199}] Splits the total by the given fractions.
+\item[\textbf{L200}] Calls Section~\ref{sec:ss}'s \texttt{steady\_state}.
+\item[\textbf{On the household budget and why $G_T$ drops out of the
+resource constraint.}] The government budget is
+$\tau_tY_t=I^G_t+G_{T,t}$. The household budget differs by financing rule:
 \eq{
-\text{income\_tax:}\quad C_t+I_t=(1-\tau_t)(w_tN_t+r_tK_t)+TR_t
+\text{income\_tax:}\quad C_t+I_t=(1-\tau_t)(w_tN_t+r_tK_t)+G_{T,t}
 \qquad
-\text{lump\_sum:}\quad C_t+I_t=w_tN_t+r_tK_t-\tau_tY_t+TR_t.
+\text{lump\_sum:}\quad C_t+I_t=w_tN_t+r_tK_t-\tau_tY_t+G_{T,t}.
 }
-Combined with $w_tN_t+r_tK_t=Y_t$ (factor payments exhaust output under
-constant returns) and the government budget identity, both cases reduce
-\emph{in the aggregate} to $Y_t=C_t+I_t+G_{B,t}+I^G_t$ --- transfers are
-received by the household but exactly offset by the (larger, by the
-transfer amount) tax it pays, so they wash out of the resource constraint
-even though they matter for household-level after-tax income. This is
-why \texttt{steady\_state} (L181) computes $G=G_B+I^G+TR$ for reporting
-purposes (\emph{total} government purchases, the policy object the sidebar's
-$G/Y$ slider controls) while the resource-constraint-relevant share used
-throughout the log-linearization (Section~\ref{sec:loglinear}) is
-$s_{GR}=s_{GB}+s_{IG}$, never $s_G$.
+Combined with $w_tN_t+r_tK_t=Y_t$ and the government budget identity, both
+cases reduce \emph{in the aggregate} to $Y_t=C_t+I_t+I^G_t$ --- transfers
+are received by the household but exactly offset by the tax it pays, so
+they wash out of the resource constraint even though they matter for
+household-level after-tax income.
 \end{itemize}
 
-\begin{notebox}
-\textbf{Note on what ``1. Comparative steady states'' does and does not
-compare.} \texttt{run\_experiment} (Section~\ref{sec:expsec}) builds
-\texttt{ss\_old} and \texttt{ss\_new} by calling
-\texttt{steady\_state\_for\_policy} \emph{twice}, varying \emph{only} the
-total government-purchases ratio ($s_{G,\text{old}}$ vs.\ $s_{G,\text{new}}$,
-i.e.\ the sidebar's ``baseline G/Y'' and ``ΔG/Y'' controls) while every
-other argument --- $\theta_N,\delta,r,A,\theta_G$, the composition
-fractions $f_{GB},f_{IG},f_{TR}$, the financing rule, and the just-calibrated
-$\theta_L$ --- is passed \emph{identically} to both calls. This is a
-deliberate modeling choice, not an oversight: it isolates the effect of
-\emph{one} policy lever (the size of government purchases) holding every
-other structural parameter fixed, which is exactly the paper's ``$\Delta Y/\Delta G$
-multiplier'' experiment. It means that if the sidebar's ΔG/Y slider is at
-$0$ (so $s_{G,\text{old}}=s_{G,\text{new}}$), \texttt{ss\_old} and
-\texttt{ss\_new} are computed from \emph{literally identical} arguments and
-are therefore identical --- regardless of what the composition sliders,
-$\theta_G$, the financing rule, or $r$ are set to. This is why the app
-shows an explicit ``ΔG/Y is set to 0 -- no experiment to show yet'' message
-and stops in that case, rather than a comparison table that would trivially
-show $0\%$ change in every row. Composition, $\theta_G$, financing, and $r$
-absolutely do change the level of both \texttt{ss\_old} and
-\texttt{ss\_new} (move any of them and re-render, with ΔG/Y $\ne 0$, to see
-both columns of the table shift) --- what they do \emph{not} do, by this
-function's design, is create a difference \emph{between} the two columns
-unless ΔG/Y is also nonzero, since they are held fixed \emph{across} the
-comparison rather than being part of what changes.
-\end{notebox}
-
-\section{The log-linear coefficients: derivation and code (L205--L258)}
+\section{The log-linear coefficients: derivation and code (L207--L259)}
 \label{sec:loglinear}
 
-This is the most involved part of the file. The code's own docstring
-(L206--L211) states the three (now four, with public capital) blocks to be
-solved without deriving them:
+The code's own docstring (L208--L213) states the four blocks to be solved:
 \begin{align}
 \hat y_t &= y_k\hat k_t+y_{kg}\hat k^G_t+y_c\hat c_t+y_g\hat g_t &&\text{(static block)}\label{eq:static}\\
 \hat k_{t+1} &= \Phi_{kk}\hat k_t+\Phi_{kc}\hat c_t+\Phi_{kg}\hat g_t+\Phi_{k,kg}\hat k^G_t &&\text{(capital accumulation)}\label{eq:capaccum}\\
 \hat c_t &= \text{coef}_c\hat c_{t+1}+\text{coef}_k\hat k_{t+1}+\text{coef}_g\hat g_{t+1}+\text{coef}_{kg}\hat k^G_{t+1} &&\text{(Euler equation)}\label{eq:euler}
 \end{align}
-where a hat denotes a log-deviation from the steady state \texttt{ss}
-($\hat x_t\equiv d\log X_t=dX_t/X$). This section derives all twelve
-coefficients from the model's underlying equations --- the production
-function (now with $K^G$), the labor-leisure FOC \eqref{eq:foc-labor}, and
-the household's capital-Euler equation --- so every line of code below is
-shown as the algebraic consequence of an economic condition. Public
-capital's \emph{own} law of motion is handled separately in
-Section~\ref{sec:kghat}, since (as will become clear) it does not depend
-on $\hat k_t$ or $\hat c_t$ at all.
+where a hat denotes a log-deviation from the steady state \texttt{ss}. This
+section derives all twelve coefficients from the production function, the
+labor-leisure FOC \eqref{eq:foc-labor}, and the household's capital-Euler
+equation.
 
-\begin{lstlisting}[firstnumber=205]
+\begin{lstlisting}[firstnumber=207]
 def _log_linear_coeffs(ss: SteadyState) -> dict:
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L205}] Signature: takes only the steady state to linearize
-around. The financing flag lives on \texttt{ss.distortionary} (set once,
-when the steady state was built), so the coefficients and the steady
-state they are linearized around can never accidentally disagree about
-which financing rule is in force.
+\item[\textbf{L207}] Signature: takes only the steady state to linearize
+around; the financing flag lives on \texttt{ss.distortionary}.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=213]
+\begin{lstlisting}[firstnumber=215]
 theta_N, theta_K, theta_G = ss.theta_N, ss.theta_K, ss.theta_G
 L = ss.L
 tau = ss.tau
-s_C, s_I, s_GB, s_IG = ss.s_C, ss.s_I, ss.s_GB, ss.s_IG
-s_GR = s_GB + s_IG
+s_C, s_I, s_IG = ss.s_C, ss.s_I, ss.s_IG
 delta, r = ss.delta, ss.r
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L213--L218}] Unpacks every steady-state quantity the
-subsequent formulas need, including $\theta_G$ and the resource-using
-share $s_{GR}=s_{GB}+s_{IG}$ (Section~\ref{sec:policybudget} explains why
-$s_{TR}$ is excluded here).
+\item[\textbf{L215--L219}] Unpacks every steady-state quantity needed
+below, including $s_{IG}$ (the resource-using share; $s_{GT}$ is not
+needed here, since transfers never enter the resource-constraint-based
+formulas that follow).
 \end{itemize}
 
-\subsection{The static block: output as a function of \texorpdfstring{$\hat k,\hat k^G,\hat c,\hat g$}{k,kG,c,g} (L220--L235)}
+\subsection{The static block: output as a function of \texorpdfstring{$\hat k,\hat k^G,\hat c,\hat g$}{k,kG,c,g} (L221--L236)}
 
-\textbf{Derivation.} Log-linearize the production function
-$Y_t=AK_t^{\theta_K}(K^G_t)^{\theta_G}N_t^{\theta_N}$:
+\textbf{Derivation.} Log-linearize the production function:
 \eq{ \hat y_t = \theta_K\hat k_t+\theta_G\hat k^G_t+\theta_N\hat n_t. \label{eq:prod-loglin} }
-This is the only change to \eqref{eq:prod-loglin} relative to the
-paper's baseline model: an extra $\theta_G\hat k^G_t$ term, additive and
-independent of everything else, since $K^G$ enters the production function
-multiplicatively just like $K$. Log-linearize the labor-leisure FOC
-\eqref{eq:foc-labor}: writing it as $\theta_L C_t=\omega_t\theta_N
-Y_t(1-N_t)/N_t$, taking logs and differentiating, using
-$d\log(1-N_t)=-\frac{N}{L}\hat n_t$ (since $L+N=1$),
-\eq{ \hat c_t = \hat\omega_t+\hat y_t-\left(1+\frac{N}{L}\right)\hat n_t
-             = \hat\omega_t+\hat y_t-\frac{\hat n_t}{L}. \label{eq:foc-loglin}}
-Note that $K^G$ does \emph{not} enter \eqref{eq:foc-loglin} directly ---
-it only affects $\hat n_t$ indirectly through $\hat y_t$ in
-\eqref{eq:prod-loglin} above.
+Log-linearize the labor-leisure FOC \eqref{eq:foc-labor}: writing it as
+$\theta_L C_t=\text{tax\_factor}_t\theta_N Y_t(1-N_t)/N_t$ and
+differentiating, using $d\log(1-N_t)=-\frac{N}{L}\hat n_t$,
+\eq{ \hat c_t = \widehat{(\text{tf})}_t+\hat y_t-\frac{\hat n_t}{L}. \label{eq:foc-loglin}}
 
-\textbf{Case \texttt{lump\_sum} ($\omega\equiv1$ always, $\hat\omega_t\equiv0$).}
+\textbf{Case \texttt{lump\_sum} (tax\_factor$\equiv1$, $\widehat{(\text{tf})}_t\equiv0$).}
 Solving \eqref{eq:foc-loglin} for $\hat n_t$: $\hat n_t=L(\hat y_t-\hat c_t)$.
 Substituting into \eqref{eq:prod-loglin}:
-\eq{ \hat y_t=\theta_K\hat k_t+\theta_G\hat k^G_t+\theta_N L(\hat y_t-\hat c_t)
-     \ \Longrightarrow\ \hat y_t\underbrace{(1-\theta_N L)}_{\displaystyle D}
+\eq{ \hat y_t\underbrace{(1-\theta_N L)}_{\displaystyle D}
        = \theta_K\hat k_t+\theta_G\hat k^G_t-\theta_N L\,\hat c_t, }
 \eq{ \Longrightarrow\quad y_k=\frac{\theta_K}{D}, \quad y_{kg}=\frac{\theta_G}{D}, \quad y_c=-\frac{\theta_N L}{D}, \quad y_g=0. \label{eq:static-lump}}
 
-\begin{lstlisting}[firstnumber=220]
+\begin{lstlisting}[firstnumber=221]
 D = 1.0 - theta_N * L
 if ss.distortionary:
     Dp = D - theta_N * L * tau / (1.0 - tau)
@@ -615,94 +504,55 @@ else:
     tax_wedge = 0.0
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L220}] $D\equiv1-\theta_N L$, the denominator in
-\eqref{eq:static-lump}.
-\item[\textbf{L230--L234}] Exactly implements \eqref{eq:static-lump} for
-\texttt{ss.distortionary=False}: no $\hat g_t$ term because $g$ never
-enters the lump-sum labor-leisure FOC directly (the tax rate is a poll
-tax, not a function of $G_t/Y_t$ at the margin), and $y_{kg}=\theta_G/D$
-appears alongside $y_k=\theta_K/D$ with the identical denominator, since
-$\hat k^G_t$ entered \eqref{eq:prod-loglin} exactly like $\hat k_t$ did.
-\texttt{tax\_wedge}$=0$ here for reuse below (Section~\ref{sec:euler}).
+\item[\textbf{L221}] $D\equiv1-\theta_N L$.
+\item[\textbf{L231--L235}] Exactly implements \eqref{eq:static-lump}: no
+$\hat g_t$ term because $g$ never enters the lump-sum labor-leisure FOC,
+and $y_{kg}=\theta_G/D$ shares $y_k$'s denominator since $\hat k^G_t$
+entered \eqref{eq:prod-loglin} exactly like $\hat k_t$.
 \end{itemize}
 
-\textbf{Case \texttt{income\_tax} ($\tau_t=$ total government purchases$/Y_t$
-always, $\omega_t=1-\tau_t$).} Now $\hat\omega_t\neq0$. Differentiating
-$\tau_tY_t=G_t$ directly (where $G_t$ is \emph{total} government purchases,
-product rule, at steady-state levels):
-\eq{ d\tau_t\cdot Y+\tau\,dY_t = dG_t \ \Longrightarrow\ d\tau_t=\tau(\hat g_t-\hat y_t)
-     \ \Longrightarrow\ \hat\omega_t=\frac{-d\tau_t}{1-\tau}=\frac{\tau}{1-\tau}(\hat y_t-\hat g_t).
-     \label{eq:tauhat} }
-(Here $\hat g_t$ denotes the log-deviation of \emph{total} government
-purchases $G_t$, the quantity the app's ``ΔG/Y'' experiments move; the
-code's \texttt{g\_path} always represents this total, with the composition
-fractions $f_{GB},f_{IG},f_{TR}$ held fixed across the experiment ---
-Section~\ref{sec:transition} confirms this is exactly how \texttt{g\_full}
-is used.) Substituting into \eqref{eq:foc-loglin} and solving for $\hat n_t$:
-\eq{ \hat n_t = L\left[\frac{\hat y_t}{1-\tau}-\hat c_t-\frac{\tau}{1-\tau}\hat g_t\right]. \label{eq:n-distortionary} }
-This is exactly the formula \texttt{simulate\_transition} uses directly
-(Section~\ref{sec:transition}, L375--L378) to recover $\hat n_t$ once
-$\hat y_t,\hat c_t,\hat g_t$ are known.
-
-Substituting \eqref{eq:n-distortionary} into \eqref{eq:prod-loglin} and
-collecting $\hat y_t$ terms gives the self-consistent static block for the
-income-tax case:
+\textbf{Case \texttt{income\_tax}.} Differentiating $\tau_tY_t=G_t$
+(total government spending) gives
+\eq{ \widehat{(\text{tf})}_t=\frac{\tau}{1-\tau}(\hat y_t-\hat g_t). \label{eq:tauhat} }
+Substituting into \eqref{eq:foc-loglin} and solving for $\hat n_t$:
+\eq{ \hat n_t = L\left[\frac{\hat y_t}{1-\tau}-\hat c_t-\frac{\tau}{1-\tau}\hat g_t\right] \label{eq:n-distortionary} }
+--- exactly the formula \texttt{simulate\_transition} uses directly
+(Section~\ref{sec:transition}, L376--L379). Substituting back into
+\eqref{eq:prod-loglin} and collecting $\hat y_t$ terms:
 \eq{
 \hat y_t\left(\underbrace{D-\frac{\theta_N L\tau}{1-\tau}}_{\displaystyle D_p}\right)
    = \theta_K\hat k_t+\theta_G\hat k^G_t-\theta_N L\hat c_t-\frac{\theta_N L\tau}{1-\tau}\hat g_t.
    \label{eq:static-distortionary-correct}
 }
 \begin{itemize}
-\item[\textbf{L222--L223}] Comment recording the derivation (public capital
-added, but the sign of the $\tau$ cross-term in $D_p$ is unchanged from
-the baseline model, and remains a \emph{minus}, matching
-\eqref{eq:static-distortionary-correct}).
-\item[\textbf{L224}] $D_p\equiv D-\dfrac{\theta_N L\tau}{1-\tau}$.
-\item[\textbf{L225--L228}] $y_k=\theta_K/D_p$, $y_{kg}=\theta_G/D_p$
-(the public-capital term inherits the same denominator as $y_k$, exactly
-as in the lump-sum case, since $\hat k^G_t$'s coefficient in
-\eqref{eq:prod-loglin} was never touched by the tax-wedge substitution),
+\item[\textbf{L222}] $D_p\equiv D-\theta_N L\tau/(1-\tau)$.
+\item[\textbf{L223--L226}] $y_k=\theta_K/D_p$, $y_{kg}=\theta_G/D_p$,
 $y_c=-\theta_N L/D_p$, $y_g=-\theta_N L\tau/[(1-\tau)D_p]$ --- matching
-\eqref{eq:static-distortionary-correct} term for term.
-\item[\textbf{L229}] $\text{tax\_wedge}\equiv\tau/(1-\tau)$, the scalar
-multiplying $(\hat y_{t+1}-\hat g_{t+1})$ in \eqref{eq:tauhat} --- reused
-in the Euler-equation coefficients (Section~\ref{sec:euler}) and in
-\texttt{simulate\_transition}'s $\hat n_t$ formula.
+\eqref{eq:static-distortionary-correct}.
+\item[\textbf{L227}] $\text{tax\_wedge}\equiv\tau/(1-\tau)$, reused in the
+Euler-equation coefficients (Section~\ref{sec:euler}).
 \end{itemize}
 
-\subsection{The Euler equation coefficients (L237--L249)}
+\subsection{The Euler equation coefficients (L238--L250)}
 \label{sec:euler}
 
-\textbf{Derivation.} The household's after-tax capital-Euler equation is
-\eq{ \frac{1}{C_t} = \beta\,\frac{1}{C_{t+1}}\Big[\omega_{t+1}R_{t+1}+1-\delta\Big], \qquad
-     R_{t+1}\equiv\theta_K\frac{Y_{t+1}}{K_{t+1}}\ \text{(pre-tax MPK)}. }
-Public capital does not enter this condition directly: the household
-chooses \emph{private} capital $K_{t+1}$ taking $K^G_{t+1}$ as given (it is
-set by government policy, not privately optimized), so $K^G$'s only
-influence on the Euler equation is indirect, through its effect on
-$\hat R_{t+1}$ via $\hat y_{t+1}$ (which is exactly how it enters below).
-At steady state, $1/\beta=\omega R+1-\delta=q+1-\delta$ where $q=\omega R$
-is the after-tax rental rate; since $q\equiv r+\delta$
-(Section~\ref{sec:supply}), $\beta=1/(1+r)$. Write
-$X_{t+1}\equiv\omega_{t+1}R_{t+1}+1-\delta$ (steady state $X=1/\beta$).
-Log-linearizing $1/C_t=\beta X_{t+1}/C_{t+1}$:
+\textbf{Derivation.} The after-tax capital-Euler equation is
+\eq{ \frac{1}{C_t} = \beta\,E_t\!\left[\frac{1+\text{tf}_{t+1}\,R_{t+1}-\delta}{C_{t+1}}\right], \qquad
+     R_{t+1}\equiv\theta_K\frac{Y_{t+1}}{K_{t+1}}. }
+At steady state $1/\beta=\text{tf}\cdot R+1-\delta=q+1-\delta$, and $q\equiv
+r+\delta$, so $\beta=1/(1+r)$. Writing $X_{t+1}\equiv\text{tf}_{t+1}R_{t+1}+1-\delta$
+and log-linearizing $1/C_t=\beta X_{t+1}/C_{t+1}$:
 \eq{ \hat c_t=\hat c_{t+1}-\hat X_{t+1}, \qquad
      \hat X_{t+1} = \underbrace{\beta q}_{\displaystyle\Omega}
-     \Big[\hat\omega_{t+1}+\hat R_{t+1}\Big] }
-(using $X=1/\beta$, $q/X=\beta q\equiv\Omega$, exactly as in the baseline
-derivation). Since $R_t=\theta_K Y_t/K_t$, $\hat R_t=\hat y_t-\hat k_t$;
-using the static block \eqref{eq:static}, $\hat y_t-\hat k_t=(y_k-1)\hat
-k_t+y_{kg}\hat k^G_t+y_c\hat c_t+y_g\hat g_t$ --- \emph{now carrying a
-$y_{kg}\hat k^G_t$ term that was not present in the baseline model}. And
-$\hat\omega_{t+1}$ is $0$ (lump-sum) or
-$\text{tax\_wedge}\cdot(\hat y_{t+1}-\hat g_{t+1})$ (income tax, equation
-\eqref{eq:tauhat}). Substituting both, then $\hat
-y_{t+1}=y_k\hat k_{t+1}+y_{kg}\hat k^G_{t+1}+y_c\hat c_{t+1}+y_g\hat
-g_{t+1}$ where needed, and collecting coefficients on $\hat k_{t+1},\hat
-k^G_{t+1},\hat c_{t+1},\hat g_{t+1}$ in $\hat c_t=\hat c_{t+1}-\hat
-X_{t+1}$ gives exactly the four coefficients below.
+     \Big[\widehat{(\text{tf})}_{t+1}+\hat R_{t+1}\Big]. }
+Since $R_t=\theta_K Y_t/K_t$, $\hat R_t=\hat y_t-\hat k_t$; using the static
+block, $\hat y_t-\hat k_t=(y_k-1)\hat k_t+y_{kg}\hat k^G_t+y_c\hat c_t+y_g\hat
+g_t$. Substituting this and \eqref{eq:tauhat} (or $0$, lump-sum), then $\hat
+y_{t+1}$'s own static-block expression where needed, and collecting
+coefficients on $\hat k_{t+1},\hat k^G_{t+1},\hat c_{t+1},\hat g_{t+1}$ in
+$\hat c_t=\hat c_{t+1}-\hat X_{t+1}$, gives the four coefficients below.
 
-\begin{lstlisting}[firstnumber=237]
+\begin{lstlisting}[firstnumber=238]
 beta = 1.0 / (1.0 + r)
 q = r + delta
 Omega = beta * q  # = q/(1+r)
@@ -718,119 +568,75 @@ coef_g = -Omega * ymk_g + Omega * tax_wedge * (1.0 - y_g)
 coef_kg = -Omega * ymk_kg - Omega * tax_wedge * y_kg
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L237}] $\beta=1/(1+r)$, the household discount factor implied
-by the steady-state Euler equation.
-\item[\textbf{L238}] $q=r+\delta$, the after-tax rental rate.
-\item[\textbf{L239}] $\Omega\equiv\beta q$, the discounted after-tax
-rental rate --- the single scalar multiplying every marginal-product term
-below.
-\item[\textbf{L241--L244}] The coefficients of $\hat R_t=\hat y_t-\hat
-k_t$ in terms of $\hat k_t,\hat k^G_t,\hat c_t,\hat g_t$: subtracting
-$\hat k_t$ from the static block only changes the $\hat k_t$ coefficient,
-giving \texttt{ymk\_k}$=y_k-1$, \texttt{ymk\_c}$=y_c$,
-\texttt{ymk\_g}$=y_g$, and \texttt{ymk\_kg}$=y_{kg}$ (public capital's
-coefficient is untouched, since $\hat k_t$ was never part of $y_{kg}$'s
-term).
-\item[\textbf{L246}] Coefficient on $\hat c_{t+1}$:
-$\text{coef}_c=1-\Omega\cdot\text{ymk\_c}-\Omega\cdot\text{tax\_wedge}\cdot y_c$
-(unchanged in form from the baseline model; $\hat k^G_{t+1}$ does not
-appear here because $y_{kg}$'s term has no $\hat c$-dependence to collect).
-\item[\textbf{L247}] Coefficient on $\hat k_{t+1}$:
-$\text{coef}_k=-\Omega\cdot\text{ymk\_k}-\Omega\cdot\text{tax\_wedge}\cdot y_k$
-(also unchanged in form).
-\item[\textbf{L248}] Coefficient on $\hat g_{t+1}$:
-$\text{coef}_g=-\Omega\cdot\text{ymk\_g}+\Omega\cdot\text{tax\_wedge}\cdot(1-y_g)$
-(unchanged in form).
-\item[\textbf{L249}] Coefficient on $\hat k^G_{t+1}$,
-$\text{coef}_{kg}=-\Omega\cdot\text{ymk\_kg}-\Omega\cdot\text{tax\_wedge}\cdot
-y_{kg}$ --- structurally identical to \texttt{coef\_k}'s formula (both
-$\hat k_{t+1}$ and $\hat k^G_{t+1}$ affect the Euler equation \emph{only}
-through their effect on $\hat R_{t+1}=\hat y_{t+1}-\hat k_{t+1}$, so their
-coefficients share the same $-\Omega(\cdot)-\Omega\cdot\text{tax\_wedge}\cdot(\cdot)$
-template), except there is no ``$-1$'' term analogous to \texttt{ymk\_k}
-since $\hat k^G_{t+1}$ does not appear \emph{subtracted} anywhere the way
-$\hat k_{t+1}$ does in $\hat R_{t+1}=\hat y_{t+1}-\hat k_{t+1}$ --- public
-capital only ever enters through $y_{kg}\hat k^G_{t+1}$'s contribution to
-$\hat y_{t+1}$ itself.
-Under \texttt{lump\_sum}, $\text{tax\_wedge}=0$ collapses all four
-formulas to $\text{coef}_c=1-\Omega y_c$, $\text{coef}_k=-\Omega(y_k-1)$,
-$\text{coef}_g=-\Omega y_g=0$, $\text{coef}_{kg}=-\Omega y_{kg}$.
+\item[\textbf{L238}] $\beta=1/(1+r)$.
+\item[\textbf{L239}] $q=r+\delta$.
+\item[\textbf{L240}] $\Omega\equiv\beta q$.
+\item[\textbf{L242--L245}] $\hat R_t=\hat y_t-\hat k_t$'s coefficients:
+\texttt{ymk\_k}$=y_k-1$, \texttt{ymk\_c}$=y_c$, \texttt{ymk\_g}$=y_g$,
+\texttt{ymk\_kg}$=y_{kg}$.
+\item[\textbf{L247}] $\text{coef}_c=1-\Omega\cdot\text{ymk\_c}-\Omega\cdot\text{tax\_wedge}\cdot y_c$.
+\item[\textbf{L248}] $\text{coef}_k=-\Omega\cdot\text{ymk\_k}-\Omega\cdot\text{tax\_wedge}\cdot y_k$.
+\item[\textbf{L249}] $\text{coef}_g=-\Omega\cdot\text{ymk\_g}+\Omega\cdot\text{tax\_wedge}\cdot(1-y_g)$.
+\item[\textbf{L250}] $\text{coef}_{kg}=-\Omega\cdot\text{ymk\_kg}-\Omega\cdot\text{tax\_wedge}\cdot y_{kg}$
+--- structurally identical to \texttt{coef\_k}'s template (both $\hat
+k_{t+1}$ and $\hat k^G_{t+1}$ affect the Euler equation only through $\hat
+R_{t+1}=\hat y_{t+1}-\hat k_{t+1}$), minus the ``$-1$'' term since $\hat
+k^G_{t+1}$ never appears \emph{subtracted} the way $\hat k_{t+1}$ does.
 \end{itemize}
 
-\subsection{The capital-accumulation coefficients (L251--L254)}
+\subsection{The capital-accumulation coefficients (L252--L255)}
 \label{sec:capaccumsec}
 
-\textbf{Derivation.} Log-linearizing $K_{t+1}=(1-\delta)K_t+I_t$ around the
-steady state (using $I=\delta K$ there):
-\eq{ \hat k_{t+1} = (1-\delta)\hat k_t+\delta\,\hat\imath_t. }
-Log-linearizing the resource constraint $Y_t=C_t+I_t+G_{B,t}+I^G_t$ (using
-$s_C+s_I+s_{GR}=1$, where $s_{GR}=s_{GB}+s_{IG}$ --- \emph{not} $s_G$,
-since $TR$ does not appear in the resource constraint,
-Section~\ref{sec:policybudget}) and solving for $\hat\imath_t$:
-\eq{ \hat\imath_t = \frac{1}{s_I}\hat y_t-\frac{s_C}{s_I}\hat c_t-\frac{s_{GR}}{s_I}\hat g_t. }
-Substituting $\hat y_t=y_k\hat k_t+y_{kg}\hat k^G_t+y_c\hat c_t+y_g\hat g_t$:
-\eq{ \hat\imath_t = \frac{y_k}{s_I}\hat k_t+\frac{y_{kg}}{s_I}\hat k^G_t+\frac{y_c-s_C}{s_I}\hat c_t+\frac{y_g-s_{GR}}{s_I}\hat g_t, }
-and substituting this into $\hat k_{t+1}=(1-\delta)\hat k_t+\delta\hat\imath_t$
-gives exactly:
+\textbf{Derivation.} Log-linearizing $K_{t+1}=(1-\delta)K_t+I_t$ (using
+$I=\delta K$ at steady state) and the resource constraint $Y_t=C_t+I_t+I^G_t$
+(using $s_C+s_I+s_{IG}=1$):
+\eq{ \hat\imath_t = \frac{y_k}{s_I}\hat k_t+\frac{y_{kg}}{s_I}\hat k^G_t+\frac{y_c-s_C}{s_I}\hat c_t+\frac{y_g-s_{IG}}{s_I}\hat g_t, }
+substituted into $\hat k_{t+1}=(1-\delta)\hat k_t+\delta\hat\imath_t$:
 
-\begin{lstlisting}[firstnumber=251]
+\begin{lstlisting}[firstnumber=252]
 Phi_kk = (1.0 - delta) + delta * y_k / s_I
 Phi_kc = delta * (y_c - s_C) / s_I
-Phi_kg = delta * (y_g - s_GR) / s_I
+Phi_kg = delta * (y_g - s_IG) / s_I
 Phi_k_kg = delta * y_kg / s_I
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L251}] $\Phi_{kk}=(1-\delta)+\delta y_k/s_I$ (unchanged in
-form).
-\item[\textbf{L252}] $\Phi_{kc}=\delta(y_c-s_C)/s_I$ (unchanged in form).
-\item[\textbf{L253}] $\Phi_{kg}=\delta(y_g-s_{GR})/s_I$ --- \emph{note}
-$s_{GR}$ here, not $s_G$: an increase in $G_B$ or $I^G$ (both counted in
-$s_{GR}$) directly crowds out resources available for investment, but a
-transfer $TR$ (part of $s_G$ but not $s_{GR}$) does not, since it is
-returned to the household rather than spent on goods.
-\item[\textbf{L254}] $\Phi_{k,kg}=\delta y_{kg}/s_I$ --- public capital
-affects next period's private capital \emph{only} through its effect on
-output $\hat y_t$ (via $y_{kg}$), with no direct ``$-s_{GR}$''-style
-resource-crowding term, since $K^G$ is a stock, not a flow that competes
-with $I$ for resources in the current period's identity.
+\item[\textbf{L252}] $\Phi_{kk}=(1-\delta)+\delta y_k/s_I$.
+\item[\textbf{L253}] $\Phi_{kc}=\delta(y_c-s_C)/s_I$.
+\item[\textbf{L254}] $\Phi_{kg}=\delta(y_g-s_{IG})/s_I$ --- $s_{IG}$, not
+$s_G$: only resource-using spending crowds out investment.
+\item[\textbf{L255}] $\Phi_{k,kg}=\delta y_{kg}/s_I$ --- public capital
+affects next period's private capital only through its effect on $\hat
+y_t$, with no direct resource-crowding term (it's a stock, not a
+competing flow).
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=256]
-return dict(y_k=y_k, y_kg=y_kg, y_c=y_c, y_g=y_g, s_GR=s_GR,
+\begin{lstlisting}[firstnumber=257]
+return dict(y_k=y_k, y_kg=y_kg, y_c=y_c, y_g=y_g, s_GR=s_IG,
             coef_c=coef_c, coef_k=coef_k, coef_g=coef_g, coef_kg=coef_kg,
             Phi_kk=Phi_kk, Phi_kc=Phi_kc, Phi_kg=Phi_kg, Phi_k_kg=Phi_k_kg)
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L256--L257}] Returns all twelve coefficients plus $s_{GR}$
-(handed back so \texttt{simulate\_transition} does not have to recompute
-$s_{GB}+s_{IG}$ itself), consumed by \texttt{simulate\_transition}
-(Section~\ref{sec:transition}).
+\item[\textbf{L257--L258}] Returns all twelve coefficients plus $s_{IG}$
+(keyed \texttt{"s\_GR"} for historical reasons, predating the removal of
+the separate ``basic purchases'' category, when the resource-using share
+was $s_{GB}+s_{IG}$ rather than just $s_{IG}$).
 \end{itemize}
 
-\section{\texttt{\_kg\_hat\_path}: public capital's own law of motion (L261--L272)}
+\section{\texttt{\_kg\_hat\_path}: public capital's own law of motion (L262--L273)}
 \label{sec:kghat}
 
 \textbf{Derivation.} Log-linearizing $K^G_{t+1}=(1-\delta)K^G_t+I^G_t$
-around the steady state (using $K^G=I^G/\delta$ there, i.e.\ $I^G=\delta
-K^G$):
-\eq{ \hat k^G_{t+1} = (1-\delta)\hat k^G_t+\delta\,\hat\imath^G_t. }
-Because the app holds the composition fractions $f_{GB},f_{IG},f_{TR}$
-fixed across a policy experiment (Section~\ref{sec:policybudget}), public
-investment is always a constant fraction of total government purchases,
-$I^G_t=f_{IG}\,G_t$, so its log-deviation is \emph{identical} to total
-government purchases' log-deviation: $\hat\imath^G_t=\hat g_t$. Substituting,
+(using $I^G=\delta K^G$ at steady state), and noting that public investment
+moves proportionally with total government spending at fixed composition
+fractions ($I^G_t=f_{IG}G_t\Rightarrow\hat\imath^G_t=\hat g_t$):
 \eq{ \hat k^G_{t+1} = (1-\delta)\hat k^G_t+\delta\,\hat g_t. \label{eq:kg-law} }
-This is a remarkable simplification: $\hat k^G_t$'s own law of motion does
-not depend on $\hat k_t$ or $\hat c_t$ at all --- it is driven
-\emph{exogenously} by the (known, policy-chosen) government-spending path
-$\{\hat g_t\}$. This is exactly why the model does not need a
-$3\times3$ generalization of the Blanchard--Kahn eigendecomposition
-(Section~\ref{sec:saddle} stays a $2\times2$ problem): $\hat k^G_t$ can be
-solved on its own, in closed recursive form, and then simply \emph{fed
-into} the $(\hat k,\hat c)$ system as one more known forcing term (via
-$\Phi_{k,kg}$ and $\text{coef}_{kg}$, Section~\ref{sec:loglinear}).
+Public capital's law of motion does not depend on $\hat k_t$ or $\hat c_t$
+at all --- it is driven exogenously by the (known) government-spending path
+--- which is why the model does not need a $3\times3$ generalization of the
+Blanchard--Kahn eigendecomposition (Section~\ref{sec:saddle} stays
+$2\times2$).
 
-\begin{lstlisting}[firstnumber=261]
+\begin{lstlisting}[firstnumber=262]
 def _kg_hat_path(delta: float, g_full: np.ndarray, kg0: float) -> np.ndarray:
     T = len(g_full)
     kg = np.zeros(T + 1)
@@ -841,66 +647,37 @@ def _kg_hat_path(delta: float, g_full: np.ndarray, kg0: float) -> np.ndarray:
     return kg
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L261}] Signature: depreciation rate, the (already
-zero-padded-by-the-caller-to-length-$T_{\text{sim}}$) government-spending
-path, and the initial public-capital log-deviation $\hat k^G_0\equiv$
-\texttt{kg0}. Returns $T+1$ values, $\hat k^G_0,\dots,\hat k^G_T$ ---
-\emph{one more} than the input length, so that the Euler-equation forcing
-term at the very last simulated period $t=T-1$ (which needs
-$\hat k^G_{t+1}=\hat k^G_T$, one step beyond the $g$-path) is always
-available (Section~\ref{sec:saddle} confirms this is exactly how the
-extra period gets used).
-\item[\textbf{L266}] Allocates a length-$(T+1)$ array and seeds
-$\hat k^G_0=$ \texttt{kg0} --- the caller-supplied initial condition
-(analogous to \texttt{k0} for private capital; see
-Section~\ref{sec:expsec}'s discussion of how \texttt{kg0} is computed for
-permanent vs.\ temporary experiments).
-\item[\textbf{L269}] Appends a trailing zero to \texttt{g\_full}, exactly
-as \texttt{\_solve\_saddle\_path} does, so that the recursion's last step
-(computing $\hat k^G_T$ from $\hat k^G_{T-1}$ and $\hat g_{T-1}$) is
-well-defined and consistent with the assumption that the shock has died
-out by the end of the horizon.
-\item[\textbf{L270--L271}] Implements \eqref{eq:kg-law} directly by simple
-forward iteration --- safe here (unlike the $\hat k,\hat c$ system) because
-this is a \emph{one}-variable, first-order, \emph{stable} recursion (its
-own root is $1-\delta\in(0,1)$, since $0<\delta<1$), with no forward-looking
-component to worry about blowing up.
+\item[\textbf{L262}] Signature: returns $T+1$ values, $\hat k^G_0,\dots,\hat
+k^G_T$ --- one more than the input length, so the Euler-equation forcing at
+the last simulated period $t=T-1$ (needing $\hat k^G_T$) is always
+available.
+\item[\textbf{L267}] Seeds $\hat k^G_0=$\texttt{kg0}.
+\item[\textbf{L270}] Appends a trailing zero (shock has died out by the
+horizon's end).
+\item[\textbf{L271--L272}] Implements \eqref{eq:kg-law} by simple forward
+iteration --- safe here (a stable, first-order, one-variable recursion with
+root $1-\delta\in(0,1)$).
 \end{itemize}
 
-\section{\texttt{\_solve\_saddle\_path}: the Blanchard--Kahn/KPR solution (L275--L336)}
+\section{\texttt{\_solve\_saddle\_path}: the Blanchard--Kahn/KPR solution (L276--L337)}
 \label{sec:saddle}
 
-\begin{lstlisting}[firstnumber=275]
+\begin{lstlisting}[firstnumber=276]
 def _solve_saddle_path(Phi_kk: float, Phi_kc: float, Phi_kg: float, Phi_k_kg: float,
                         coef_c: float, coef_k: float, coef_g: float, coef_kg: float,
                         k0: float, g_full: np.ndarray, kg_full: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L275--L277}] Signature: the eight coefficients from
-Section~\ref{sec:loglinear} that involve $\hat k$ or $\hat c$ (the
-$y_k,y_{kg},y_c,y_g$ coefficients are not needed here --- they are only
-used afterward, in \texttt{simulate\_transition}, to convert the solved
-$(\hat k_t,\hat c_t)$ into $\hat y_t$), an initial capital log-deviation
-$k_0$, the full-length government-spending path \texttt{g\_full}, and the
-length-$(T+1)$ public-capital path \texttt{kg\_full} from
-Section~\ref{sec:kghat}, supplied as a \emph{known} forcing input rather
-than solved jointly. Returns the two log-deviation paths $\{\hat k_t\},\{\hat c_t\}$.
+\item[\textbf{L276--L278}] Signature: the eight coefficients from
+Section~\ref{sec:loglinear} involving $\hat k$ or $\hat c$, an initial
+capital log-deviation $k_0$, \texttt{g\_full}, and the length-$(T+1)$
+public-capital path \texttt{kg\_full} from Section~\ref{sec:kghat},
+supplied as a \emph{known} forcing input.
 \end{itemize}
 
-\textbf{Setting up a first-order forward system.} Equations
-\eqref{eq:capaccum} and \eqref{eq:euler} together are one equation with a
-\emph{predetermined} variable ($k$, whose value at $t$ was fixed by the
-past) and one \emph{jump} variable ($c$, free to move on impact); $\hat
-k^G_t$ is a third, purely exogenous input (Section~\ref{sec:kghat}). Solve
-\eqref{eq:euler} for $\hat c_{t+1}$ using \eqref{eq:capaccum}'s expression
-for $\hat k_{t+1}$:
-\eq{
-\hat c_{t+1} = \frac{1}{\text{coef}_c}\hat c_t-\frac{\text{coef}_k}{\text{coef}_c}\hat k_{t+1}-\frac{\text{coef}_g}{\text{coef}_c}\hat g_{t+1}-\frac{\text{coef}_{kg}}{\text{coef}_c}\hat k^G_{t+1}, \qquad
-\hat k_{t+1}=\Phi_{kk}\hat k_t+\Phi_{kc}\hat c_t+\Phi_{kg}\hat g_t+\Phi_{k,kg}\hat k^G_t,
-}
-and substitute the second into the first to write both $\hat k_{t+1}$ and
-$\hat c_{t+1}$ purely in terms of $(\hat k_t,\hat c_t)$ and the (now
-two-part: $g$ and $k^G$) forcing path:
+\textbf{Setting up a first-order forward system.} Solving \eqref{eq:euler}
+for $\hat c_{t+1}$ using \eqref{eq:capaccum}'s expression for $\hat
+k_{t+1}$ and substituting gives:
 \eq{
 \begin{pmatrix}\hat k_{t+1}\\ \hat c_{t+1}\end{pmatrix}
 = \underbrace{\begin{pmatrix}\Phi_{kk} & \Phi_{kc}\\[2pt]
@@ -911,31 +688,22 @@ two-part: $g$ and $k^G$) forcing path:
                    -\dfrac{\text{coef}_k(\Phi_{kg}\hat g_t+\Phi_{k,kg}\hat k^G_t)}{\text{coef}_c}-\dfrac{\text{coef}_g}{\text{coef}_c}\hat g_{t+1}-\dfrac{\text{coef}_{kg}}{\text{coef}_c}\hat k^G_{t+1}\end{pmatrix}.
   \label{eq:M-system}
 }
-Notice $M$ itself is completely unchanged by the addition of public
-capital --- it is still built \emph{only} from $\Phi_{kk},\Phi_{kc},
-\text{coef}_k,\text{coef}_c$, exactly as in the baseline model. Public
-capital enters purely through the additive forcing vector, which is why
-the eigendecomposition below stays $2\times2$.
+$M$ itself is unaffected by public capital --- built only from
+$\Phi_{kk},\Phi_{kc},\text{coef}_k,\text{coef}_c$; public capital enters
+purely through the additive forcing vector.
 
-\begin{lstlisting}[firstnumber=297]
+\begin{lstlisting}[firstnumber=298]
 M = np.array([[Phi_kk, Phi_kc],
               [-coef_k * Phi_kk / coef_c, (1.0 - coef_k * Phi_kc) / coef_c]])
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L297--L298}] Builds $M$ exactly as in \eqref{eq:M-system}.
+\item[\textbf{L298--L299}] Builds $M$ exactly as in \eqref{eq:M-system}.
 \end{itemize}
 
-\textbf{Diagonalizing $M$.} Since $M$ is $2\times2$ with real entries in
-this model's calibrated range, it has (generically) two real eigenvalues
-$\lambda_s,\lambda_u$ with eigenvectors forming the columns of a matrix
-$V$, so $M=V\,\text{diag}(\lambda_s,\lambda_u)\,V^{-1}$. Saddle-path
-stability (King, Plosser \& Rebelo 1988; the Blanchard--Kahn condition for
-one predetermined and one jump variable) requires \emph{exactly one} root
-inside the unit circle ($|\lambda_s|<1$, associated with the predetermined
-$\hat k$) and one outside ($|\lambda_u|>1$, associated with the jump
-variable $\hat c$).
+\textbf{Diagonalizing $M$.} $M=V\,\text{diag}(\lambda_s,\lambda_u)\,V^{-1}$;
+saddle-path stability requires $|\lambda_s|<1<|\lambda_u|$.
 
-\begin{lstlisting}[firstnumber=299]
+\begin{lstlisting}[firstnumber=300]
 vals, vecs = np.linalg.eig(M)
 if np.max(np.abs(vals.imag)) > 1e-8:
     raise RuntimeError("Complex eigenvalues encountered; parameters imply oscillatory "
@@ -952,27 +720,19 @@ V = vecs[:, [stable_idx, unstable_idx]]
 Vinv = np.linalg.inv(V)
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L299}] NumPy's general eigenvalue solver.
-\item[\textbf{L300--L303}] Guards against complex eigenvalues (damped-
-oscillatory dynamics, outside this solver's scope) and discards
-numerically negligible imaginary parts.
-\item[\textbf{L305}] Identifies the stable eigenvalue as whichever has the
-smaller absolute value.
-\item[\textbf{L306}] The other index is the unstable one.
-\item[\textbf{L307}] $\lambda_s,\lambda_u$ read off.
-\item[\textbf{L308--L310}] Verifies true saddle-path stability; raises
-otherwise.
-\item[\textbf{L311}] Reorders the eigenvector matrix's columns so column
-$0$ is stable, column $1$ unstable.
-\item[\textbf{L312}] Inverts $V$, needed to rotate $(\hat k_t,\hat c_t)$
-into the eigenbasis $\zeta_t\equiv V^{-1}(\hat k_t,\hat c_t)^\top$, in
-which the system decouples: $\zeta_{1,t+1}=\lambda_s\zeta_{1,t}+n_{t,0}$,
-$\zeta_{2,t+1}=\lambda_u\zeta_{2,t}+n_{t,1}$, where $(n_{t,0},n_{t,1})^\top$
-is the forcing term from \eqref{eq:M-system} (now including both the
-$g$-driven and $k^G$-driven pieces), rotated into the same eigenbasis.
+\item[\textbf{L300}] NumPy's eigenvalue solver.
+\item[\textbf{L301--L304}] Guards against complex eigenvalues; discards
+negligible imaginary parts.
+\item[\textbf{L306}] Stable eigenvalue = smaller absolute value.
+\item[\textbf{L307}] The other index is unstable.
+\item[\textbf{L308}] Reads off $\lambda_s,\lambda_u$.
+\item[\textbf{L309--L311}] Verifies true saddle-path stability.
+\item[\textbf{L312}] Reorders $V$'s columns (stable, unstable).
+\item[\textbf{L313}] Inverts $V$, needed to rotate $(\hat k_t,\hat c_t)$
+into the eigenbasis where the system decouples.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=314]
+\begin{lstlisting}[firstnumber=315]
 T = len(g_full)
 g_ext = np.concatenate([g_full, [0.0]])
 kg_now = kg_full[:T]     # kg_hat_t for t=0..T-1
@@ -984,40 +744,18 @@ N = np.stack([Nk, Nc], axis=1)
 n = N @ Vinv.T  # forcing rotated into the eigen-basis: n[:,0]=stable comp., n[:,1]=unstable
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L314}] $T$, the simulation horizon.
-\item[\textbf{L315}] Appends a trailing zero to \texttt{g\_full}, so
-\texttt{g\_ext[T]} (needed as $\hat g_T$, one period past the horizon) is
-well-defined and consistent with the shock having died out.
-\item[\textbf{L316--L317}] Slices the length-$(T+1)$ \texttt{kg\_full}
-array (from \texttt{\_kg\_hat\_path}) into ``now'' ($\hat k^G_t$ for
-$t=0,\dots,T-1$) and ``next'' ($\hat k^G_{t+1}$ for $t=0,\dots,T-1$)
-views --- this is precisely why \texttt{\_kg\_hat\_path} returns one extra
-period.
-\item[\textbf{L318}] $N_k[t]=\Phi_{kg}\hat g_t+\Phi_{k,kg}\hat k^G_t$ for
-$t=0,\dots,T-1$ --- the $\hat k_{t+1}$ row's forcing term from
-\eqref{eq:M-system}, now with both the government-spending and
-public-capital pieces.
-\item[\textbf{L319--L320}] $N_c[t]=-\dfrac{\text{coef}_k(\Phi_{kg}\hat
-g_t+\Phi_{k,kg}\hat k^G_t)}{\text{coef}_c}-\dfrac{\text{coef}_g}{\text{coef}_c}\hat
-g_{t+1}-\dfrac{\text{coef}_{kg}}{\text{coef}_c}\hat k^G_{t+1}$ --- the
-$\hat c_{t+1}$ row's forcing term, using the contemporaneous $\hat g_t,\hat
-k^G_t$ (via the substituted $\hat k_{t+1}$ term) \emph{and} the
-one-period-ahead $\hat g_{t+1},\hat k^G_{t+1}$ directly, exactly as
-\eqref{eq:M-system} requires.
-\item[\textbf{L321}] Stacks $N_k,N_c$ into a $T\times2$ array.
-\item[\textbf{L322}] Rotates every row into the eigenbasis via
-\texttt{N @ Vinv.T}.
+\item[\textbf{L315}] $T$, the simulation horizon.
+\item[\textbf{L316}] Trailing zero appended to \texttt{g\_full}.
+\item[\textbf{L317--L318}] Slices the length-$(T+1)$ \texttt{kg\_full} into
+``now'' and ``next'' views.
+\item[\textbf{L319}] $N_k[t]=\Phi_{kg}\hat g_t+\Phi_{k,kg}\hat k^G_t$.
+\item[\textbf{L320--L321}] $N_c[t]$, using both contemporaneous and
+one-period-ahead forcing, per \eqref{eq:M-system}.
+\item[\textbf{L322}] Stacks $N_k,N_c$.
+\item[\textbf{L323}] Rotates into the eigenbasis.
 \end{itemize}
 
-\textbf{Solving the unstable (jump) component backward.} Exactly as in the
-baseline model: iterating $\zeta_{2,t+1}=\lambda_u\zeta_{2,t}+n_{t,1}$
-forward would blow up geometrically since $|\lambda_u|>1$. Instead, impose
-the no-bubble condition $\zeta_{2,t}\to0$ as the forcing dies out and solve
-backward, giving the discounted present value of all remaining forcing
-(now including the $\hat k^G$-driven piece baked into $n_{t,1}$):
-\eq{ \zeta_{2,t} = -\sum_{j=0}^{T-1-t}\frac{n_{t+j,1}}{\lambda_u^{\,j+1}}. \label{eq:zeta2} }
-
-\begin{lstlisting}[firstnumber=324]
+\begin{lstlisting}[firstnumber=325]
 zeta2 = np.zeros(T)
 running = 0.0
 for t in range(T - 1, -1, -1):
@@ -1025,19 +763,13 @@ for t in range(T - 1, -1, -1):
     zeta2[t] = -running
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L324--L328}] Implements \eqref{eq:zeta2} by a single
-backward pass, unchanged in structure from the baseline model (only the
-\emph{contents} of $n_{t,1}$ differ, now including the public-capital
-forcing).
+\item[\textbf{L325--L329}] Solves the unstable (jump) component
+\emph{backward} (a naive forward iteration would blow up since
+$|\lambda_u|>1$), giving the discounted present value of all remaining
+forcing: $\zeta_{2,t}=-\sum_{j=0}^{T-1-t}n_{t+j,1}/\lambda_u^{j+1}$.
 \end{itemize}
 
-\textbf{Solving the stable (predetermined) component forward.} Since
-$|\lambda_s|<1$, iterating $\zeta_{1,t+1}=\lambda_s\zeta_{1,t}+n_{t,0}$
-forward from $t=0$ is numerically safe. The starting value $\zeta_{1,0}$
-is pinned by the one true initial condition, $\hat k_0=k_0$:
-\eq{ \zeta_{1,0} = \frac{k_0-V_{01}\,\zeta_{2,0}}{V_{00}}. \label{eq:zeta1-0} }
-
-\begin{lstlisting}[firstnumber=330]
+\begin{lstlisting}[firstnumber=331]
 zeta1 = np.zeros(T)
 zeta1[0] = (k0 - V[0, 1] * zeta2[0]) / V[0, 0]
 for t in range(T - 1):
@@ -1047,20 +779,19 @@ z = V @ np.vstack([zeta1, zeta2])
 return z[0, :], z[1, :]
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L330--L333}] Implements \eqref{eq:zeta1-0} and then the
-forward recursion for $\zeta_{1,t}$, unchanged in structure from the
-baseline model.
-\item[\textbf{L335}] Rotates back out of the eigenbasis, $\begin{pmatrix}\hat
-k_t\\\hat c_t\end{pmatrix}=V\zeta_t$, for every $t$ at once via
-\texttt{V @ np.vstack([zeta1, zeta2])}.
-\item[\textbf{L336}] Returns row $0$ ($\{\hat k_t\}$) and row $1$
-($\{\hat c_t\}$).
+\item[\textbf{L331--L332}] Pins $\zeta_{1,0}=(k_0-V_{01}\zeta_{2,0})/V_{00}$
+from the true initial condition $\hat k_0=k_0$.
+\item[\textbf{L333--L334}] Propagates $\zeta_{1,t}$ forward (safe since
+$|\lambda_s|<1$).
+\item[\textbf{L336}] Rotates back: $\begin{pmatrix}\hat k_t\\\hat
+c_t\end{pmatrix}=V\zeta_t$.
+\item[\textbf{L337}] Returns $\{\hat k_t\},\{\hat c_t\}$.
 \end{itemize}
 
-\section{\texttt{simulate\_transition}: assembling the full path (L339--L398)}
+\section{\texttt{simulate\_transition}: assembling the full path (L340--L399)}
 \label{sec:transition}
 
-\begin{lstlisting}[firstnumber=339]
+\begin{lstlisting}[firstnumber=340]
 @dataclass
 class TransitionPath:
     years: np.ndarray
@@ -1075,13 +806,12 @@ class TransitionPath:
     r_bp: np.ndarray  # real interest rate, deviation in basis points (annualized)
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L339--L350}] A dataclass holding one array per series shown
-in the app's ``Transition dynamics'' charts, all in \emph{percent}
-deviations from a reference steady state, plus \texttt{KG} for the
-public-capital path.
+\item[\textbf{L340--L351}] Holds one array per series shown in the app's
+``Transition dynamics'' charts, all in percent deviations from a reference
+steady state.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=353]
+\begin{lstlisting}[firstnumber=354]
 def simulate_transition(ss_ref: SteadyState, g_path: np.ndarray,
                          k0: float = 0.0, kg0: float = 0.0, T_sim: int = 300) -> TransitionPath:
     coeffs = _log_linear_coeffs(ss_ref)
@@ -1095,20 +825,16 @@ def simulate_transition(ss_ref: SteadyState, g_path: np.ndarray,
     tau = ss_ref.tau
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L353--L354}] Signature: the steady state to linearize
-around, the (possibly short) government-spending shock path, initial
-private- and public-capital log-deviations ($k_0,kg_0$, both defaulting to
-$0$), and the simulation horizon.
-\item[\textbf{L358--L359}] Computes and unpacks the coefficients from
-Section~\ref{sec:loglinear}.
-\item[\textbf{L361--L363}] Zero-pads \texttt{g\_path} out to length
-$T_{\text{sim}}$ (the shock is assumed to have ended, and $G$ returned to
-its reference level, beyond the given path).
-\item[\textbf{L365--L366}] Unpacks $L,\tau$ from the reference steady
-state, needed for the labor-supply formula below.
+\item[\textbf{L354--L355}] Signature: steady state to linearize around,
+government-spending shock path, initial capital log-deviations
+($k_0,kg_0$, default $0$), simulation horizon.
+\item[\textbf{L359--L360}] Computes and unpacks the coefficients.
+\item[\textbf{L362--L364}] Zero-pads \texttt{g\_path} to length
+$T_{\text{sim}}$.
+\item[\textbf{L366--L367}] Unpacks $L,\tau$.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=368]
+\begin{lstlisting}[firstnumber=369]
 kg_full_ext = _kg_hat_path(ss_ref.delta, g_full, kg0)  # length T_sim+1
 k, c = _solve_saddle_path(coeffs["Phi_kk"], coeffs["Phi_kc"], coeffs["Phi_kg"], coeffs["Phi_k_kg"],
                            coeffs["coef_c"], coeffs["coef_k"], coeffs["coef_g"], coeffs["coef_kg"],
@@ -1117,21 +843,15 @@ kg_full = kg_full_ext[:T_sim]
 y = y_k * k + y_kg * kg_full + y_c * c + y_g * g_full
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L368}] Solves public capital's path first
-(Section~\ref{sec:kghat}) --- it does not depend on $k,c$, so it can be
-computed once, up front, and handed to the saddle-path solver as a known
-input.
-\item[\textbf{L369--L371}] Calls Section~\ref{sec:saddle}'s solver with the
-eight $\hat k/\hat c$-relevant coefficients and the two forcing paths.
-\item[\textbf{L372}] Trims \texttt{kg\_full\_ext} back down to length
-$T_{\text{sim}}$ (dropping the extra period that existed only so the Euler
-forcing at $t=T_{\text{sim}}-1$ had a value to reference).
-\item[\textbf{L373}] $\hat y_t=y_k\hat k_t+y_{kg}\hat k^G_t+y_c\hat
-c_t+y_g\hat g_t$ --- the static block \eqref{eq:static}, evaluated with
-all four terms.
+\item[\textbf{L369}] Solves public capital's path first (it does not
+depend on $k,c$).
+\item[\textbf{L370--L372}] Calls the saddle-path solver.
+\item[\textbf{L373}] Trims the extra period.
+\item[\textbf{L374}] $\hat y_t=y_k\hat k_t+y_{kg}\hat k^G_t+y_c\hat
+c_t+y_g\hat g_t$, the static block \eqref{eq:static}.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=375]
+\begin{lstlisting}[firstnumber=376]
 if ss_ref.distortionary:
     n = L * (y - c) - (L * tau / (1.0 - tau)) * (g_full - y)
 else:
@@ -1141,19 +861,14 @@ w = y - n  # wage = MPL, log-deviation
 i = (y - ss_ref.s_C * c - s_GR * g_full) / ss_ref.s_I
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L375--L378}] Implements \eqref{eq:n-distortionary} (income
-tax) or its lump-sum simplification $\hat n_t=L(\hat y_t-\hat c_t)$
-directly, as promised in Section~\ref{sec:loglinear}. Note $K^G$ does not
-appear in this formula explicitly --- its influence is already fully
-captured through $\hat y_t$ (L373).
-\item[\textbf{L379}] $\hat w_t=\hat y_t-\hat n_t$, the log-linearized wage
-$=$ marginal product of labor, from $w_t=\theta_N Y_t/N_t$.
-\item[\textbf{L381}] $\hat\imath_t=(\hat y_t-s_C\hat c_t-s_{GR}\hat
-g_t)/s_I$, the log-linearized resource constraint from
-Section~\ref{sec:capaccumsec}'s derivation --- again $s_{GR}$, not $s_G$.
+\item[\textbf{L376--L379}] Implements \eqref{eq:n-distortionary} or its
+lump-sum simplification directly.
+\item[\textbf{L380}] $\hat w_t=\hat y_t-\hat n_t$.
+\item[\textbf{L382}] $\hat\imath_t=(\hat y_t-s_C\hat c_t-s_{IG}\hat
+g_t)/s_I$, from Section~\ref{sec:capaccumsec}.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=383]
+\begin{lstlisting}[firstnumber=384]
 c_pct = 100.0 * c
 y_pct = 100.0 * y
 i_pct = 100.0 * i
@@ -1172,22 +887,17 @@ return TransitionPath(years=years, Y=y_pct, C=c_pct, I=i_pct, K=k_pct, KG=kg_pct
                        W=w_pct, G=g_pct, r_bp=r_dev_bp)
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L383--L390}] Converts every log-deviation to percent
-(multiplying by $100$), including \texttt{kg\_pct}.
-\item[\textbf{L392--L394}] The real interest rate's deviation, in basis
-points: from the Euler equation $\hat c_t=\hat c_{t+1}-\hat X_{t+1}$ and
-$X\approx1+r$ to first order (so $\hat X_{t+1}\approx dr_{t+1}/(1+r)$, i.e.\
-$dr_{t+1}\approx(1+r)(\hat c_{t+1}-\hat c_t)$), computed as a forward
-difference of the $\{\hat c_t\}$ path and converted to basis points
-($\times10^4$); the last period repeats the second-to-last value since
-there is no $\hat c_{T+1}$ available.
-\item[\textbf{L396--L398}] Assembles and returns the \texttt{TransitionPath}.
+\item[\textbf{L384--L391}] Converts every log-deviation to percent.
+\item[\textbf{L393--L395}] Real interest rate deviation in basis points,
+via a forward difference of $\{\hat c_t\}$ ($dr_{t+1}\approx(1+r)(\hat
+c_{t+1}-\hat c_t)$); the last period repeats the second-to-last value.
+\item[\textbf{L397--L399}] Assembles and returns the \texttt{TransitionPath}.
 \end{itemize}
 
-\section{\texttt{run\_experiment}: a full policy comparison (L405--L475)}
+\section{\texttt{run\_experiment}: a full policy comparison (L406--L476)}
 \label{sec:expsec}
 
-\begin{lstlisting}[firstnumber=405]
+\begin{lstlisting}[firstnumber=406]
 @dataclass
 class PolicyExperiment:
     ss_old: SteadyState
@@ -1197,71 +907,70 @@ class PolicyExperiment:
     multiplier_impact: Optional[float]
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L405--L411}] Bundles the before/after steady states, the
-transition path, and the two headline multipliers the app displays.
+\item[\textbf{L406--L412}] Bundles the before/after steady states, the
+transition path, and the two headline multipliers.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=414]
+\begin{lstlisting}[firstnumber=415]
 def run_experiment(theta_N: float, delta: float, r: float, A: float, theta_G: float,
-                    s_G_old: float, s_G_new: float, f_GB: float, f_IG: float, f_TR: float,
+                    s_G_old: float, s_G_new: float, f_IG: float, f_GT: float,
                     N_target: float, financing: Financing,
                     permanent: bool, duration_years: int = 4, T_sim: int = 300) -> PolicyExperiment:
     distortionary = financing == "income_tax"
-    s_GB_old, s_IG_old, s_TR_old = s_G_old * f_GB, s_G_old * f_IG, s_G_old * f_TR
-    theta_L = calibrate_theta_L(theta_N, delta, r, A, theta_G, s_GB_old, s_IG_old, s_TR_old,
+    s_IG_old, s_GT_old = s_G_old * f_IG, s_G_old * f_GT
+    theta_L = calibrate_theta_L(theta_N, delta, r, A, theta_G, s_IG_old, s_GT_old,
                                  distortionary, N_target)
 
-    ss_old = steady_state_for_policy(theta_N, delta, r, A, theta_G, s_G_old, f_GB, f_IG, f_TR,
+    ss_old = steady_state_for_policy(theta_N, delta, r, A, theta_G, s_G_old, f_IG, f_GT,
                                        theta_L, distortionary)
-    ss_new = steady_state_for_policy(theta_N, delta, r, A, theta_G, s_G_new, f_GB, f_IG, f_TR,
+    ss_new = steady_state_for_policy(theta_N, delta, r, A, theta_G, s_G_new, f_IG, f_GT,
                                        theta_L, distortionary)
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L414--L417}] Signature: the full parameter set the app's
-sidebar exposes --- technology/preferences, $\theta_G$, the old and new
-\emph{total} government-purchases ratios (the ``ΔG/Y'' experiment), the
-composition fractions (held fixed across the experiment), the labor-supply
-target, the financing rule, and the shock's duration.
-\item[\textbf{L421}] Translates the human-readable \texttt{financing}
-string into the boolean \texttt{distortionary} used everywhere downstream
---- the \emph{only} place in the file where the string literal
-\texttt{"income\_tax"} is compared against.
-\item[\textbf{L422}] Splits the \emph{baseline} total into its three
-composition levels, used only for calibrating $\theta_L$ (the calibration
-target, $\bar N$, is defined relative to the \emph{baseline} policy, per
-Baxter \& King's Table 1 strategy, matching the original model).
-\item[\textbf{L423--L424}] Calibrates $\theta_L$ once (Section~\ref{sec:calib}),
-at the baseline policy --- the \emph{same} $\theta_L$ is then used for
-\emph{both} the old and new steady states below, since preferences do not
-change when the policy does.
-\item[\textbf{L426--L429}] Builds both steady states via
-\texttt{steady\_state\_for\_policy} (Section~\ref{sec:policybudget}),
-holding $(f_{GB},f_{IG},f_{TR})$ and $\theta_L$ fixed and varying only the
-total government-purchases ratio ($s_{G,\text{old}}$ vs.\ $s_{G,\text{new}}$)
---- see the box in Section~\ref{sec:policybudget} on exactly what this
-does and does not compare.
+\item[\textbf{L415--L418}] Signature: technology/preferences, $\theta_G$,
+old/new \emph{total} government-spending ratios (the ``ΔG/Y'' experiment),
+composition fractions (held fixed across the experiment), labor-supply
+target, financing rule, shock duration.
+\item[\textbf{L422}] Translates \texttt{financing} into the boolean
+\texttt{distortionary}.
+\item[\textbf{L423}] Splits the \emph{baseline} total into its two
+composition levels, for calibrating $\theta_L$.
+\item[\textbf{L424--L425}] Calibrates $\theta_L$ once, at the baseline
+policy --- used for \emph{both} steady states below.
+\item[\textbf{L427--L430}] Builds both steady states, holding
+$(f_{IG},f_{GT})$ and $\theta_L$ fixed, varying only the total.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=431]
+\begin{notebox}
+\textbf{On what ``1. Comparative steady states'' compares.} The app's own
+Panel 1 does \emph{not} directly display \texttt{ss\_old}/\texttt{ss\_new}
+from this function. Since \texttt{run\_experiment} recalibrates $\theta_L$
+fresh from whatever the \emph{current} sidebar baseline happens to be, its
+$N$ always lands on exactly \texttt{N\_target} by construction --- which
+would silently mask any real labor-supply response to composition,
+financing, $\theta_G$, or $r$ changes (dumping the whole adjustment onto
+consumption instead). The app therefore computes a separate ``current
+settings'' steady state for Panel 1 using \texttt{steady\_state\_for\_policy}
+directly, with a theta\_L held \emph{fixed} at a benchmark calibration
+shared with the comparison's left-hand column, so $N$ moves honestly there.
+\texttt{run\_experiment}'s own recalibration remains exactly right for its
+actual purpose here: isolating the effect of the ΔG/Y lever specifically,
+holding every other structural parameter (including preferences) fixed on
+both sides of that one comparison.
+\end{notebox}
+
+\begin{lstlisting}[firstnumber=432]
 dY = ss_new.Y - ss_old.Y
 dG = ss_new.G - ss_old.G
 multiplier_long_run = dY / dG if abs(dG) > 1e-12 else float("nan")
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L431--L433}] The long-run output multiplier,
-$\Delta Y/\Delta G$, computed as an \emph{exact} finite difference of two
-closed-form steady states (Section~\ref{sec:ss}) --- not a derivative or
-an approximation, and not affected in any way by the log-linear machinery
-in Sections \ref{sec:loglinear}--\ref{sec:saddle}. Guards against division
-by (numerically) zero if the experiment did not actually change $G$ (this
-is precisely the ΔG/Y$=0$ case discussed in the box in
-Section~\ref{sec:policybudget}: \texttt{multiplier\_long\_run} would be
-\texttt{nan} here, which is exactly why the app checks ΔG/Y directly and
-shows an explanatory message rather than displaying \texttt{nan} or a
-trivially-zero table).
+\item[\textbf{L432--L434}] The long-run output multiplier, $\Delta Y/\Delta
+G$, an \emph{exact} finite difference of two closed-form steady states ---
+not affected by the log-linear machinery at all.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=435]
+\begin{lstlisting}[firstnumber=436]
 if permanent:
     ss_ref = ss_new
     k0 = np.log(ss_old.K / ss_new.K)
@@ -1276,36 +985,21 @@ else:
     g_path = np.concatenate([np.full(duration_years, g_level), np.zeros(1)])
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L435}] \textbf{Permanent shock:} the economy is assumed to
-converge to the \emph{new} steady state, so the log-linearization is done
-around $\text{ss\_ref}=\text{ss\_new}$ (linearizing near where the system
-is actually headed, for accuracy).
-\item[\textbf{L436}] Capital, however, starts at its \emph{old}
-steady-state level (it is predetermined and has not yet had time to
-adjust), so the initial gap relative to the new reference is
-$\hat k_0=\log(K_{\text{old}}/K_{\text{new}})$.
-\item[\textbf{L437}] The identical logic for public capital,
-$\hat k^G_0=\log(K^G_{\text{old}}/K^G_{\text{new}})$ --- guarded against
-$K^G_{\text{new}}=0$ (which happens when $s_{IG}=0$, i.e.\ no public
-investment at all), in which case there is no public-capital channel to
-linearize around and the gap is simply set to $0$.
-\item[\textbf{L438}] With the economy already at (converging toward) the
-new steady state, there is no \emph{additional} government-spending shock
-to feed in beyond what is already baked into \texttt{ss\_ref}, so
-\texttt{g\_path} is a single zero (padded with zeros thereafter by
-\texttt{simulate\_transition}).
-\item[\textbf{L440}] \textbf{Temporary shock:} the steady state is
-unchanged in the long run (the shock reverts), so linearize around the
-\emph{common}, original steady state, $\text{ss\_ref}=\text{ss\_old}$.
-\item[\textbf{L442--L443}] Both $k_0$ and $kg_0$ are $0$ --- capital never
-needs to jump, since the reference steady state never changes.
-\item[\textbf{L444--L446}] Builds a finite-duration government-spending
-path: the log-level of the shock, $\hat g=\log(1+\Delta G/G_{\text{old}})$,
-held constant for \texttt{duration\_years} periods and then reverting to
-$0$.
+\item[\textbf{L436}] \textbf{Permanent:} linearize around $\text{ss\_ref}=\text{ss\_new}$.
+\item[\textbf{L437}] $\hat k_0=\log(K_{\text{old}}/K_{\text{new}})$ ---
+capital is predetermined, still at its old level.
+\item[\textbf{L438}] Same logic for public capital, guarded against
+$K^G_{\text{new}}=0$.
+\item[\textbf{L439}] No additional shock beyond what's baked into
+\texttt{ss\_ref}.
+\item[\textbf{L441}] \textbf{Temporary:} linearize around the common
+$\text{ss\_ref}=\text{ss\_old}$.
+\item[\textbf{L443--L444}] Both initial gaps are $0$.
+\item[\textbf{L445--L447}] A finite-duration government-spending shock
+path.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=448]
+\begin{lstlisting}[firstnumber=449]
 path = simulate_transition(ss_ref, g_path, k0=k0, kg0=kg0, T_sim=T_sim)
 
 Y_level_0 = ss_ref.Y * float(np.exp(path.Y[0] / 100.0))
@@ -1314,19 +1008,14 @@ dG0 = ss_new.G - ss_old.G
 multiplier_impact = dY0 / dG0 if abs(dG0) > 1e-12 else float("nan")
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L448}] Calls Section~\ref{sec:transition}'s function with the
-resolved reference steady state, forcing path, and initial conditions.
-\item[\textbf{L450}] Converts the impact-period ($t=0$) percent deviation
-back into an output \emph{level}: $Y_0=Y_{\text{ref}}\cdot
-e^{\hat y_0/100}$.
-\item[\textbf{L451--L453}] The impact multiplier, $\Delta Y_0/\Delta G$,
-comparing the impact-period output level to the \emph{original} (pre-shock)
-steady state, over the \emph{full} eventual change in $G$ --- matching the
-paper's convention regardless of which steady state the log-linear path
-itself was computed around.
+\item[\textbf{L449}] Calls Section~\ref{sec:transition}'s function.
+\item[\textbf{L451}] Converts the impact-period deviation back into a
+level.
+\item[\textbf{L452--L454}] The impact multiplier, always relative to the
+original steady state.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=455]
+\begin{lstlisting}[firstnumber=456]
 def shift(field_ref, X_ref, X_old):
     return field_ref + 100.0 * np.log(X_ref / X_old)
 
@@ -1346,96 +1035,147 @@ else:
     path.G = shift(path.G, ss_ref.G, ss_old.G)
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L455--L456}] A helper that re-expresses a path currently
-measured as \% deviation from \texttt{ss\_ref} into \% deviation from
-\texttt{ss\_old} instead, by adding the (constant) log-gap between the two
-reference levels, $100\log(X_{\text{ref}}/X_{\text{old}})$.
-\item[\textbf{L458--L461}] Applied to $Y,C,I,K$ --- so every chart the app
-draws is always measured relative to the \emph{original}, pre-policy
-steady state, matching Baxter \& King's Figures 2--4 convention, even for
-the permanent-shock case where the log-linearization was internally done
-around the \emph{new} steady state.
-\item[\textbf{L462--L465}] The same shift applied to $K^G$, guarded
-against a $\log(0/0)$-style issue when public capital is absent in either
-steady state (in which case the whole path is just reported as identically
-$0$).
-\item[\textbf{L466--L467}] The same shift applied to $N,w$.
-\item[\textbf{L468--L471}] For $G$ specifically: under a \textbf{permanent}
-shock the government-purchases series jumps immediately and stays at its
-new level forever, so the chart simply shows a constant line at
-$100\log(G_{\text{new}}/G_{\text{old}})$ for every period; under a
-\textbf{temporary} shock the ordinary \texttt{shift} is used, since
-\texttt{path.G} genuinely varies over time (rising for
-\texttt{duration\_years} periods, then reverting).
+\item[\textbf{L456--L457}] Re-expresses a path from \% deviation from
+\texttt{ss\_ref} into \% deviation from \texttt{ss\_old}.
+\item[\textbf{L459--L462}] Applied to $Y,C,I,K$, so every chart is measured
+relative to the \emph{original} steady state.
+\item[\textbf{L463--L466}] Same shift for $K^G$, guarded against
+$\log(0/0)$.
+\item[\textbf{L467--L468}] Same shift for $N,w$.
+\item[\textbf{L469--L472}] $G$: constant line under a permanent shock;
+ordinary shift under a temporary one.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=473]
+\begin{lstlisting}[firstnumber=474]
 return PolicyExperiment(ss_old=ss_old, ss_new=ss_new, path=path,
                          multiplier_long_run=multiplier_long_run,
                          multiplier_impact=multiplier_impact)
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L473--L475}] Assembles and returns the full
-\texttt{PolicyExperiment}, the single object the app's every result panel
-reads from.
+\item[\textbf{L474--L476}] Assembles and returns the full
+\texttt{PolicyExperiment}.
 \end{itemize}
 
-\section{Table 4 replication: \texttt{public\_investment\_long\_run} and \texttt{\_public\_capital\_output} (L482--L534)}
+\section{\texttt{public\_investment\_long\_run}: replicating the paper's actual Table 4 (L483--L567)}
 \label{sec:table4}
 
-This section powers the app's ``Productive public investment'' panel,
-answering: as public capital's productivity parameter $\theta_G$ ranges
-over a grid, how does a marginal dollar of public investment $I^G$ affect
-long-run output, consumption, and investment --- holding the public-
-investment \emph{share} of output, $s_{IG}=I^G/Y$, fixed?
+This section was rewritten after reading Baxter \& King's Table 4 (their
+page 330) directly, and verified line-for-line against the published
+numbers. The paper's own note under the table states its exact
+methodology, which the code now follows precisely:
 
-\begin{lstlisting}[firstnumber=482]
-def public_investment_long_run(theta_N: float, delta: float, r: float, A: float,
-                                 s_GB: float, theta_L: float, distortionary: bool,
-                                 theta_G_grid: np.ndarray, s_IG: float = 0.05) -> "dict[str, np.ndarray]":
-    ss0 = steady_state(theta_N, delta, r, A, 0.0, s_GB, s_IG, 0.0, distortionary, theta_L)
-    theta_K = ss0.theta_K
-
-    direct = theta_G_grid.copy()
-    k_adj = theta_G_grid / (1.0 - theta_K)
-\end{lstlisting}
 \begin{itemize}
-\item[\textbf{L482--L484}] Signature: basic government purchases, the
-already-calibrated $\theta_L$ (calibrated once, at $\theta_G=0$, and held
-fixed across the whole grid --- so preferences do not change as $\theta_G$
-is swept, only the technology does), the financing rule, and a grid of
-$\theta_G$ values to evaluate, at a fixed public-investment share
-\texttt{s\_IG}.
-\item[\textbf{L495}] Builds a reference steady state at $\theta_G=0$
-(needed only to read off $\theta_K$, which does not depend on $\theta_G$
-or $s_{IG}$ at all --- this is really just a convenience way to get
-$\theta_K=1-\theta_N$ alongside a sanity-checked, fully-populated
-\texttt{SteadyState} object).
-\item[\textbf{L498}] \textbf{Column (i), the ``direct'' effect}: holding
-private capital $K$ and labor $N$ fixed, a marginal increase in $I^G$
-raises $Y$ one-for-one with its \emph{direct} productivity contribution,
-$dY/dI^G=\partial Y/\partial K^G\cdot dK^G/dI^G=(\theta_G Y/K^G)\cdot(1/\delta)$
-evaluated where $I^G=\delta K^G$ simplifies to exactly $\theta_G$ --- i.e.\
-the elasticity parameter itself, unmodified. This is the smallest,
-most conservative estimate of the effect, ignoring all equilibrium
-responses.
-\item[\textbf{L499}] \textbf{Column (ii), private capital adjusts (labor
-fixed)}: a standard result for Cobb--Douglas production with two capital-like
-inputs is that if $K$ is allowed to re-optimize (via the capital-Euler
-condition) in response to $K^G$'s productivity boost, but $N$ is held
-fixed, the total multiplier is scaled up by $1/(1-\theta_K)$ --- the same
-algebra as a standard capital-deepening amplification factor.
+\item Public investment is fixed at $s_{I^G}=0.05$ throughout the whole
+table --- \textbf{not} tied to the app's live composition slider elsewhere
+(which can go to $0\%$).
+\item ``In each case, shifts in purchases are financed via lump-sum
+taxation'' --- Table 4 is \emph{always} lump-sum, regardless of the
+sidebar's financing toggle.
+\item At $\theta_G=0$, the paper's own row reads $\Delta Y/\Delta I^G=1.16$,
+\emph{not} $0$: ``the first row of the table replicates the results for
+basic government purchases obtained in Section III above'' (the ordinary
+lump-sum multiplier). There is no productivity distinction between $I^G$
+and other government spending at $\theta_G=0$, so a marginal dollar of
+either has the identical negative-wealth-effect labor-supply response.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=501]
+\begin{notebox}
+\textbf{Why a small, live-slider-driven $s_{I^G}$ blew up.} An earlier
+version of this function set $s_{I^G}=\max(f_{IG}\cdot s_G,\,10^{-4})$,
+tied to the sidebar's composition slider, and perturbed it by
+$h=10^{-4}$ for the finite difference. When the slider was at $0\%$, this
+forced $s_{I^G}-h$ to land at (or below) $0$ exactly. But $K^G$ is an
+\emph{essential} input in the production function whenever $\theta_G>0$
+(it enters multiplicatively, $Y\propto(K^G)^{\theta_G}$): as $K^G\to0$,
+$Y\to0$ \emph{regardless of $K,N$}. The two finite-difference evaluation
+points ($s_{I^G}\mp h$) straddled this singularity, producing wildly
+different $\alpha$ values on each side and a finite difference that
+exploded to values in the billions for large $\theta_G$. The fix
+(L489-524) hardcodes $s_{I^G}=0.05$ (safely away from $0$) independent of
+any sidebar control, exactly matching the paper's own fixed calibration
+choice.
+\end{notebox}
+
+\begin{lstlisting}[firstnumber=483]
+def public_investment_long_run(theta_N: float, delta: float, r: float, A: float,
+                                 s_other: float, N_target: float,
+                                 theta_G_grid: np.ndarray, s_IG: float = 0.05) -> "dict[str, np.ndarray]":
+\end{lstlisting}
+\begin{itemize}
+\item[\textbf{L483--L485}] Signature: \texttt{s\_other} is other,
+always-unproductive, resource-using government spending held fixed ---
+what used to be the separate ``basic purchases'' $G_B$ category before it
+was folded into $I^G$ in the main model (Section~\ref{sec:supply}).
+Reintroducing it \emph{here specifically} (not in the main model) is what
+lets this table replicate the paper's actual setup: a baseline total
+government share (matching the sidebar's $G/Y$) of which only $s_{I^G}=0.05$
+is the productive investment under study, and the rest ($s_{\text{other}}$)
+remains inert at every $\theta_G$ on the grid. \texttt{N\_target} replaces
+the old \texttt{theta\_L} parameter --- $\theta_L$ is now calibrated
+\emph{inside} this function (L518--L525) rather than by the caller, since
+its calibration is specific to this table's own $(s_{IG},s_{\text{other}})$
+split and would otherwise require a second, easy-to-mismatch calibration
+call in \texttt{app.py}.
+\end{itemize}
+
+\textbf{Deriving \texttt{direct} and \texttt{k\_adj} (L529--L530).} Holding
+private capital and labor fixed, net output $Y-I^G$ is maximized when
+$s_{I^G}=\theta_G$ (``zero net resource use''); more generally,
+\eq{ \frac{dY}{dI^G}\bigg|_{K,N\text{ fixed}} = \frac{\partial Y}{\partial K^G}\cdot\frac{dK^G}{dI^G}
+   = \left(\theta_G\frac{Y}{K^G}\right)\cdot\frac{1}{\delta} = \frac{\theta_G}{s_{I^G}} }
+(using $K^G\delta=I^G=s_{I^G}Y$ at steady state). \textbf{This is the fix
+verified against the paper}: an earlier version of this code used
+\texttt{direct = theta\_G\_grid} directly (i.e.\ $\theta_G$ alone, implicitly
+assuming $s_{I^G}=1$), which does not match the paper's reported ratios at
+all (e.g.\ at $\theta_G=0.05$ the paper reports direct effect $=1.00$, not
+$0.05$). With $1/(1-\theta_K)$ the standard capital-deepening amplification
+factor for letting $K$ (but not $N$) adjust:
+\eq{ \texttt{direct} = \frac{\theta_G}{s_{I^G}}, \qquad \texttt{k\_adj} = \frac{\texttt{direct}}{1-\theta_K}. }
+Both are now verified to match the paper's Table 4 exactly (e.g.\
+$\theta_G=0.05\Rightarrow\text{direct}=1.00,\ \text{k\_adj}=1.72$;
+$\theta_G=0.40\Rightarrow\text{direct}=8.00,\ \text{k\_adj}=13.79$).
+
+\begin{lstlisting}[firstnumber=516]
+theta_K = 1.0 - theta_N
+
+tau0 = s_IG + s_other
+supply0 = _supply_side_impl(theta_N, delta, r, A, tau0, 0.0, s_IG, False)
+s_C0 = 1.0 - supply0["s_I"] - s_IG - s_other
+if s_C0 <= 0:
+    raise ValueError("Government share too large: steady-state consumption share <= 0.")
+theta_L = theta_N * (1.0 - N_target) / (s_C0 * N_target)  # tax_factor=1 always (lump-sum)
+if theta_L <= 0:
+    raise ValueError("Implied theta_L <= 0; adjust N_target or the spending settings.")
+
+direct = theta_G_grid / s_IG
+k_adj = direct / (1.0 - theta_K)
+\end{lstlisting}
+\begin{itemize}
+\item[\textbf{L516}] $\theta_K=1-\theta_N$, computed directly rather than
+via a full \texttt{steady\_state} call (this function never needs a
+\texttt{SteadyState} object, only $\theta_K$).
+\item[\textbf{L518--L521}] Calibrates $\theta_L$ once, at $\theta_G=0$
+(the ``direct effect'' baseline, always lump-sum so \texttt{tax\_factor}$=1$),
+so labor hits \texttt{N\_target} under the total baseline share
+$\tau_0=s_{I^G}+s_{\text{other}}$ --- an inlined version of
+\texttt{calibrate\_theta\_L} (Section~\ref{sec:calib}) specialized to
+this table's $s_C=1-s_I-s_{IG}-s_{\text{other}}$ formula (which the main
+\texttt{calibrate\_theta\_L} cannot express, since it has no
+$s_{\text{other}}$ concept).
+\item[\textbf{L523--L524}] Guards against infeasible calibration.
+\item[\textbf{L529--L530}] Implements the closed-form \texttt{direct} and
+\texttt{k\_adj} formulas above.
+\end{itemize}
+
+\begin{lstlisting}[firstnumber=532]
 both = np.zeros_like(theta_G_grid)
 dC = np.zeros_like(theta_G_grid)
 dI = np.zeros_like(theta_G_grid)
 for idx, theta_G in enumerate(theta_G_grid):
-    h = 1e-4
-    m1 = _public_capital_output(theta_N, theta_K, delta, r, A, s_GB, theta_L, distortionary,
+    h = min(1e-4, s_IG * 0.05)  # keep the perturbation well inside (0, s_IG)
+    m1 = _public_capital_output(theta_N, theta_K, delta, r, A, s_other, theta_L,
                                  theta_G, s_IG - h)
-    m2 = _public_capital_output(theta_N, theta_K, delta, r, A, s_GB, theta_L, distortionary,
+    m2 = _public_capital_output(theta_N, theta_K, delta, r, A, s_other, theta_L,
                                  theta_G, s_IG + h)
     both[idx] = (m2["Y"] - m1["Y"]) / (m2["IG"] - m1["IG"])
     dC[idx] = (m2["C"] - m1["C"]) / (m2["IG"] - m1["IG"])
@@ -1444,34 +1184,35 @@ for idx, theta_G in enumerate(theta_G_grid):
 return dict(theta_G=theta_G_grid, direct=direct, k_adj=k_adj, both=both, dC=dC, dI=dI)
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L504--L512}] \textbf{Column (iii), full general equilibrium}
-(and the analogous $\Delta C/\Delta I^G$ and $\Delta I/\Delta I^G$, shown
-alongside it in the app's table): rather than deriving a further
-closed-form elasticity (both private capital \emph{and} labor adjust,
-which does not reduce to a single clean multiplicative factor the way
-columns (i)--(ii) do), the code takes a \textbf{numerical derivative}: it
-computes the exact nonlinear steady state at $s_{IG}\mp h$ for a tiny
-$h=10^{-4}$, using $\theta_L$ and $\theta_G$ held fixed, and forms the
-centered finite difference $\Delta Y/\Delta I^G\approx(Y(s_{IG}+h)-Y(s_{IG}-h))/(I^G(s_{IG}+h)-I^G(s_{IG}-h))$
---- and likewise for $C$ and $I$. This is exact to the precision of the
-finite-difference step, and, being built from two calls to the same
-closed-form \texttt{\_public\_capital\_output} steady-state solver, never
-suffers a root-finder's convergence failure.
-\item[\textbf{L514}] Returns all five series (\texttt{direct}, \texttt{k\_adj},
-\texttt{both}, \texttt{dC}, \texttt{dI}) keyed by name, plus the grid
-itself, for the app to tabulate.
+\item[\textbf{L536}] $h=\min(10^{-4},\,0.05\,s_{I^G})$ --- with
+$s_{I^G}=0.05$ fixed, this evaluates to $h=2.5\times10^{-4}$ by default,
+but the $0.05\,s_{I^G}$ cap is a defensive measure: it guarantees the
+perturbation always stays a small \emph{fraction} of $s_{I^G}$ itself
+(rather than a fixed absolute step that could exceed $s_{I^G}$ if this
+function were ever called with a smaller custom $s_{I^G}$), keeping both
+evaluation points $s_{I^G}\mp h$ safely on the same side of the
+$K^G\to0$ singularity discussed above.
+\item[\textbf{L537--L543}] \textbf{Column (iv--vi), full general
+equilibrium} (both $K$ and $N$ adjust): a \textbf{numerical derivative} ---
+the exact nonlinear steady state at $s_{I^G}\mp h$, forming the centered
+finite difference $\Delta Y/\Delta I^G\approx(Y_2-Y_1)/(I^G_2-I^G_1)$ (and
+likewise for $C,I$). Built from two calls to the closed-form
+\texttt{\_public\_capital\_output} solver, so it never suffers a
+root-finder's convergence failure --- only the (now-fixed) evaluation-point
+singularity discussed above.
+\item[\textbf{L545}] Returns all five series plus the grid, for the app to
+tabulate.
 \end{itemize}
 
-\begin{lstlisting}[firstnumber=517]
-def _public_capital_output(theta_N, theta_K, delta, r, A, s_GB, theta_L, distortionary, theta_G, s_IG):
-    tau = s_GB + s_IG
-    supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, distortionary)
+\begin{lstlisting}[firstnumber=548]
+def _public_capital_output(theta_N, theta_K, delta, r, A, s_other, theta_L, theta_G, s_IG):
+    tau = s_IG + s_other
+    supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, False)
     s_I = supply["s_I"]
-    s_C = 1.0 - s_I - s_GB - s_IG
+    s_C = 1.0 - s_I - s_IG - s_other
     if s_C <= 0:
         s_C = 1e-6
-    wedge = supply["wedge"]
-    N = wedge * theta_N / (theta_L * s_C + wedge * theta_N)
+    N = theta_N / (theta_L * s_C + theta_N)
     Y = supply["alpha"] * N
     K = supply["kappa"] * N
     KG = supply["KG"] * N
@@ -1481,28 +1222,28 @@ def _public_capital_output(theta_N, theta_K, delta, r, A, s_GB, theta_L, distort
     return dict(Y=Y, C=C, I=I, IG=IG, K=K, KG=KG, N=N)
 \end{lstlisting}
 \begin{itemize}
-\item[\textbf{L517}] Signature: a lean, single-purpose re-implementation of
-the steady-state solve (deliberately \emph{not} routed through the general
-\texttt{steady\_state} function, since this is called $2\times$ per grid
-point $\times$ up to $10$ grid points every time the app re-renders, and
-avoiding \texttt{SteadyState} object construction overhead keeps the
-Table~4 panel responsive), specialized to this cross-section: no
-transfers ($TR\equiv0$ here, so $\tau=s_{GB}+s_{IG}$ exactly, matching the
-docstring's tax-rate identity with $s_{TR}=0$).
-\item[\textbf{L521}] The tax rate for this cross-section.
-\item[\textbf{L522}] Calls Section~\ref{sec:supply}'s price system.
-\item[\textbf{L524--L526}] $s_C=1-s_I-s_{GB}-s_{IG}$, floored at a tiny
-positive number ($10^{-6}$) rather than raising, so that the finite-
-difference step $h=10^{-4}$ in \texttt{public\_investment\_long\_run}
-never crashes even if one of the two perturbed points is numerically at
-the edge of feasibility --- a deliberate robustness trade-off appropriate
-for a function used only inside a numerical-derivative loop, not exposed
-directly to the app's user-facing error handling.
-\item[\textbf{L528}] $N=\omega\theta_N/(\theta_L s_C+\omega\theta_N)$,
-identical in form to \texttt{steady\_state}'s L168.
-\item[\textbf{L529--L534}] Computes and returns $Y,K,K^G,C,I,I^G,N$
-exactly as \texttt{steady\_state} would, just without constructing a full
-\texttt{SteadyState} dataclass.
+\item[\textbf{L548}] Signature: a lean, single-purpose steady-state solve
+(deliberately not routed through the general \texttt{steady\_state}
+function, both to avoid dataclass-construction overhead in this
+per-grid-point, per-perturbation inner loop, and because it needs the
+$s_{\text{other}}$ resource-constraint term that \texttt{steady\_state}
+cannot express). \textbf{Always lump-sum} (\texttt{distortionary} is no
+longer a parameter at all --- hardcoded to \texttt{False} throughout, since
+the paper's Table 4 always is, independent of the sidebar's financing
+toggle elsewhere in the app).
+\item[\textbf{L549}] $\tau=s_{IG}+s_{\text{other}}$, the total government
+share for this cross-section.
+\item[\textbf{L550}] Calls Section~\ref{sec:supply}'s price system.
+\item[\textbf{L552--L554}] $s_C=1-s_I-s_{IG}-s_{\text{other}}$ --- both
+resource-using categories reduce the consumption share; floored at a tiny
+positive number rather than raising, so the finite-difference step in
+\texttt{public\_investment\_long\_run} never crashes even at the edge of
+feasibility.
+\item[\textbf{L556}] $N=\theta_N/(\theta_L s_C+\theta_N)$ --- the lump-sum
+labor-supply formula (no \texttt{tax\_factor}, since it is always $1$
+here), identical in form to \texttt{steady\_state}'s L171 with
+$\text{tax\_factor}=1$.
+\item[\textbf{L557--L562}] Computes and returns $Y,K,K^G,C,I,I^G,N$.
 \end{itemize}
 
 \end{document}
