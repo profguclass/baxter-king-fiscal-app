@@ -217,6 +217,16 @@ st.write("Exact, closed-form solution of the model's long-run (“great ratios�
          "equilibrium: the paper's **fixed benchmark calibration** vs. **whatever the "
          "sidebar is currently set to** (including the ΔG/Y experiment, item 5). Moving "
          "*any* sidebar control -- duration aside -- changes the right-hand column.")
+if f_IG_pct == 0.0 and financing == "lump_sum":
+    st.caption("⚠️ At the current settings (0% public investment, i.e. **all** government "
+               "spending is transfers, under **lump-sum** financing), moving \"Baseline "
+               "government spending\" only changes G, τ, and Transfers G_T -- Output, "
+               "Consumption, Investment, Capital, and N stay exactly flat. This is a real "
+               "model result, not a bug: a lump-sum tax funding an equal-sized lump-sum "
+               "transfer is a pure wash for the household (no (1-τ) wedge to distort "
+               "anything under lump-sum financing). Raise the public investment share "
+               "(item 6) or switch to Income tax financing (item 2) to see the other "
+               "variables respond.")
 
 if benchmark_error:
     st.error(f"Could not compute the benchmark steady state: {benchmark_error}")
