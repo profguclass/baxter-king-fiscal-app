@@ -180,7 +180,16 @@ def _log_linear_coeffs(ss: SteadyState, distortionary: bool) -> dict:
 
     D = 1.0 - theta_N * L
     if distortionary:
-        Dp = D + theta_N * L * tau / (1.0 - tau)
+        # NOTE: this denominator must be D MINUS the tax-wedge cross term, not
+        # plus. Derivation: log-linearizing Y=AK^theta_K N^theta_N together
+        # with the labor-leisure FOC under tau_t=G_t/Y_t gives
+        # y_hat*(D - theta_N*L*tau/(1-tau)) = theta_K*k_hat - theta_N*L*c_hat
+        #   - theta_N*L*tau/(1-tau)*g_hat.
+        # (Verified against this module's own n_hat formula in
+        # simulate_transition -- L(y_hat-c_hat) - L*tau/(1-tau)*(g_hat-y_hat)
+        # -- by requiring the production identity y_hat=theta_K*k_hat+theta_N*n_hat
+        # hold exactly; a "+" here leaves a residual of ~0.3-1% instead of 0.)
+        Dp = D - theta_N * L * tau / (1.0 - tau)
         y_k = theta_K / Dp
         y_c = -theta_N * L / Dp
         y_g = -theta_N * L * tau / ((1.0 - tau) * Dp)
