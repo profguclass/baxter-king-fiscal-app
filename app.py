@@ -374,10 +374,10 @@ else:
                 "you'd call the shock permanent or temporary).")
 
 # --------------------------------------------------------------------------
-# 4. Table 4 replication: public-capital productivity sensitivity
+# 3. Table 4 replication: public-capital productivity sensitivity
 # --------------------------------------------------------------------------
 
-st.header("4. Productive public investment (Table 4 replication)")
+st.header("3. Productive public investment")
 st.write(
     "Baxter & King's Section VI: public investment directly raises the productivity of "
     "private capital and labor, "
@@ -421,41 +421,6 @@ try:
                "general-equilibrium response of private capital and labor.")
 except Exception as exc:  # noqa: BLE001
     st.error(f"Could not compute Table 4 with the current sidebar settings: {exc}")
-
-# --------------------------------------------------------------------------
-# 5. Figure 5 replication: dynamic response to a public-investment shock
-# --------------------------------------------------------------------------
-
-st.header("5. Public-investment shock dynamics (Figure 5 replication)")
-if model_type == "dynamic":
-    st.write("The same permanent/temporary policy experiment from the sidebar, but "
-             "tracing out the path of *public* capital Kᴳ alongside private capital, "
-             "output, consumption, and labor -- Baxter & King's Figure 5.")
-    if ss_old.IG <= 0 and ss_new.IG <= 0:
-        st.info("Set the sidebar's public-investment composition share (Iᴳ/G, item 7) "
-                 "above 0% to see a public-investment-driven transition path here.")
-    else:
-        years_to_show5 = st.slider("Years to display ", 5, 100, 25, 5, key="years_to_show5")
-        yrs5 = path.years[:years_to_show5]
-        fig5 = go.Figure()
-        for name, arr, color in [("Output (Y)", path.Y, "#2563eb"), ("Consumption (C)", path.C, "#16a34a"),
-                                  ("Private capital (K)", path.K, "#f59e0b"),
-                                  ("Public capital (Kᴳ)", path.KG, "#7c3aed"),
-                                  ("Labor (N)", path.N, "#dc2626")]:
-            fig5.add_trace(go.Scatter(x=yrs5, y=arr[:years_to_show5], mode="lines+markers",
-                                       name=name, line=dict(color=color, width=2), marker=dict(size=4)))
-        fig5.add_hline(y=0, line_dash="dot", line_color="gray")
-        fig5.update_layout(
-            title=dict(text="Dynamic response to the public-investment-financed policy change",
-                       y=0.98, yanchor="top"),
-            xaxis_title="Years after the shock", yaxis_title="% deviation from original steady state",
-            height=460, legend=dict(orientation="h", y=1.18, yanchor="bottom"), margin=dict(t=110))
-        st.plotly_chart(fig5, use_container_width=True)
-        st.caption("Public capital Kᴳ builds up gradually (it accumulates from Iᴳ just like "
-                   "private capital), so its productivity boost to output phases in over time "
-                   "rather than appearing on impact -- the key qualitative feature of Figure 5.")
-else:
-    st.info("Not applicable under **Static**: there is no capital-accumulation path to trace.")
 
 # --------------------------------------------------------------------------
 # Footer / methodology note
