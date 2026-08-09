@@ -418,6 +418,191 @@ General Equilibrium." *American Economic Review* 83 (3): 315-334.
         """
     )
 
+# --------------------------------------------------------------------------
+# Appendix: the model's equations, written out and explained
+# --------------------------------------------------------------------------
+
+st.divider()
+st.header("Appendix: The model's equations")
+st.write(
+    "Every number in this app comes from the equations below. They are written out "
+    "in full here -- with the economic intuition behind each one -- so you can see "
+    "exactly what is being solved, not just the results."
+)
+
+st.subheader("A.1 Notation")
+st.markdown(
+    r"""
+| Symbol | Meaning |
+|---|---|
+| $C_t$ | Consumption |
+| $N_t$ | Labor supplied (fraction of the time endowment), $L_t=1-N_t$ is leisure |
+| $Y_t$ | Output |
+| $K_t$ | Private capital stock |
+| $K^G_t$ | Public (government) capital stock |
+| $I_t,\ I^G_t$ | Private and public investment |
+| $G_{B,t},\ TR_t$ | "Basic" government purchases and lump-sum transfers |
+| $w_t,\ r_t$ | Real wage and real rental rate on capital |
+| $\tau_t$ | Tax rate |
+| $\theta_N,\ \theta_K=1-\theta_N$ | Labor's and capital's shares of income |
+| $\theta_G$ | Productivity of public capital (Section VI extension) |
+| $\theta_L$ | Weight on leisure in utility (calibrated, not chosen by the user directly) |
+| $\delta$ | Depreciation rate (same for $K$ and $K^G$) |
+| $A$ | Total factor productivity, normalized to 1 |
+
+A hat over a variable, e.g. $\hat y_t$, denotes a **percent deviation from steady
+state** — the units used in every transition-path chart in this app.
+"""
+)
+
+st.subheader("A.2 Preferences")
+st.latex(r"u(C_t, N_t) = \ln C_t + \theta_L \ln(1-N_t)")
+st.markdown(
+    "Households value consumption and leisure, with **log utility** in each — the "
+    "standard King-Plosser-Rebelo preference specification that keeps labor supply "
+    "responses well-behaved along a balanced growth path. $\\theta_L$ is not a free "
+    "slider in this app; instead it is *calibrated* (see A.6) so that steady-state "
+    "labor supply matches the target hours-worked share at the baseline policy — "
+    "exactly as Baxter & King do in their Table 1."
+)
+
+st.subheader("A.3 Technology")
+st.latex(r"Y_t = A\,K_t^{\theta_K}\,(K^G_t)^{\theta_G}\,N_t^{\theta_N}, \qquad \theta_K = 1-\theta_N")
+st.markdown(
+    "Output is Cobb-Douglas in private capital and labor, exactly as in the paper's "
+    "baseline model. The extension in Section VI (and the sidebar's θ_G slider) adds "
+    "public capital $K^G_t$ as a third input: it raises the productivity of *every* "
+    "private input without the government having to pay for it again next period — "
+    "a non-rival \"public good\" flavor. Setting $\\theta_G=0$ collapses this exactly "
+    "to the paper's baseline model, where government purchases are a pure resource "
+    "cost with no productivity effect."
+)
+
+st.subheader("A.4 Capital accumulation")
+st.latex(r"K_{t+1} = (1-\delta)K_t + I_t \qquad\qquad K^G_{t+1} = (1-\delta)K^G_t + I^G_t")
+st.markdown(
+    "Both private and public capital accumulate by the standard **perpetual "
+    "inventory** rule, and (for simplicity) depreciate at the same rate $\\delta$. "
+    "Public capital is financed by public investment $I^G_t$, one of the three "
+    "components of total government purchases (sidebar item 6)."
+)
+
+st.subheader("A.5 Resource constraint and the government budget")
+st.latex(r"Y_t = C_t + I_t + G_{B,t} + I^G_t")
+st.markdown(
+    "Output is used for private consumption, private investment, basic government "
+    "purchases, and public investment. **Transfers $TR_t$ do not appear here** — a "
+    "transfer just moves resources from the government's books to a household's "
+    "pocket without using up any output, so it nets out of the economy-wide "
+    "resource constraint even though it is part of the government's budget below."
+)
+st.latex(r"\tau_t Y_t = G_{B,t} + I^G_t + TR_t, \qquad \tau_t = \dfrac{G_{B,t}+I^G_t+TR_t}{Y_t}")
+st.markdown(
+    "The government's budget always balances **every period** (no debt in this "
+    "model), and the tax rate is *defined* as total government purchases divided "
+    "by output. This holds **identically under both financing rules** in the "
+    "sidebar (item 2) — what differs between them is not how much revenue is "
+    "raised, but whether that revenue collection distorts the household's "
+    "decisions, in the household budget constraint below."
+)
+st.latex(r"\text{Income tax:}\quad C_t+I_t = (1-\tau_t)\big(w_tN_t+r_tK_t\big) + TR_t")
+st.latex(r"\text{Lump-sum:}\quad C_t+I_t = w_tN_t+r_tK_t - \tau_tY_t + TR_t")
+st.markdown(
+    "Under **Income tax** financing, $\\tau_t$ is a proportional wedge that shrinks "
+    "the *marginal* return to working and saving — this is what makes the tax "
+    "distortionary. Under **Lump-sum** financing, the same total revenue $\\tau_t "
+    "Y_t$ is instead collected as a poll tax that does not depend on how much the "
+    "household chooses to work or save, so it creates a pure income (wealth) "
+    "effect with no substitution effect at the margin."
+)
+
+st.subheader("A.6 Household optimization")
+st.markdown("Maximizing lifetime utility subject to the budget constraint above gives two first-order conditions.")
+st.latex(r"\text{Labor-leisure:}\qquad \theta_L\,\frac{C_t}{1-N_t} = \omega_t\,w_t")
+st.markdown(
+    "The household works until the marginal disutility of an extra hour (left side) "
+    "equals its marginal after-tax benefit (right side). $\\omega_t=(1-\\tau_t)$ "
+    "under Income tax financing and $\\omega_t=1$ under Lump-sum financing — this "
+    "single wedge is *the* mechanism generating the app's negative multiplier "
+    "result under Income tax."
+)
+st.latex(r"\text{Euler equation:}\qquad \frac{1}{C_t} = \beta\,E_t\!\left[\frac{1+\omega_{t+1}\,\mathrm{MPK}_{t+1}-\delta}{C_{t+1}}\right],\qquad \beta=\frac{1}{1+r}")
+st.markdown(
+    "The household is indifferent between consuming one more unit today and "
+    "saving it to consume $(1+\\text{after-tax net return})$ units tomorrow. This "
+    "is the equation that makes consumption **forward-looking** — its expectation "
+    "of the *entire future* path of the economy is baked into today's consumption "
+    "choice, which is exactly why the transition path (A.8) has to be solved with "
+    "a saddle-path method rather than simulated forward period by period."
+)
+st.markdown(
+    r"Prices are just marginal products: the wage $w_t=\theta_N Y_t/N_t$ (marginal "
+    r"product of labor) and the rental rate $\mathrm{MPK}_t = \theta_K Y_t/K_t$ "
+    r"(marginal product of capital); in steady state $\omega\,\mathrm{MPK}=r+\delta$."
+)
+
+st.subheader("A.7 Steady state (closed form)")
+st.markdown(
+    "Because the production function has constant returns to scale in $(K,N)$, "
+    "the capital/labor ratio $\\kappa=K/N$ is pinned down by the capital-Euler "
+    "condition **alone**, independent of labor supply:"
+)
+st.latex(r"\omega\,\theta_K\,A\,(K^G/N)^{\theta_G}\,\kappa^{\theta_K-1} = r+\delta")
+st.markdown(
+    "(When $\\theta_G>0$ this is solved by a quick fixed-point iteration, since "
+    "$K^G=I^G/\\delta$ itself depends on output — see the code's "
+    "`_supply_side_impl`.) Everything else in the steady state then follows in "
+    "closed form, with $s_C=1-s_I-s_{G_B}-s_{I^G}$ the steady-state consumption "
+    "share and $s_I=\\delta\\kappa/(Y/N)$ the investment share:"
+)
+st.latex(r"N = \frac{\omega\,\theta_N}{\theta_L\,s_C + \omega\,\theta_N}")
+st.latex(r"Y=\frac{Y}{N}\cdot N,\qquad K=\kappa N,\qquad C=s_C\,Y,\qquad I=s_I\,Y")
+st.markdown(
+    "This is the exact equation solved for the "
+    "**\"1. Comparative steady states\"** table above: once $N$ is known, every "
+    "other steady-state quantity is a simple multiple of it. This closed-form "
+    "solve is why the app never fails to converge the way a numerical "
+    "root-finder might."
+)
+
+st.subheader("A.8 Transition dynamics (log-linearized)")
+st.markdown(
+    "Around a steady state, every equation above can be approximated to first "
+    "order in percent deviations (hats). The production function and labor-supply "
+    "condition combine into one static relationship:"
+)
+st.latex(r"\hat y_t = y_k\,\hat k_t + y_{kg}\,\hat{k}^G_t + y_c\,\hat c_t + y_g\,\hat g_t")
+st.markdown(
+    "Capital accumulation becomes a linear law of motion for the "
+    "**predetermined** state variable $\\hat k_t$ (its value today was fixed by "
+    "yesterday's investment, so it cannot jump):"
+)
+st.latex(r"\hat k_{t+1} = \Phi_{kk}\,\hat k_t + \Phi_{kc}\,\hat c_t + \Phi_{kg}\,\hat g_t + \Phi_{k,kg}\,\hat{k}^G_t")
+st.markdown(
+    "and the Euler equation becomes a linear relationship pinning down the "
+    "**forward-looking (\"jump\")** variable $\\hat c_t$ in terms of *tomorrow's* "
+    "capital and government spending:"
+)
+st.latex(r"\hat c_t = \text{coef}_c\,\hat c_{t+1} + \text{coef}_k\,\hat k_{t+1} + \text{coef}_g\,\hat g_{t+1} + \text{coef}_{kg}\,\hat{k}^G_{t+1}")
+st.markdown(
+    "Public capital's own law of motion is exogenous — it just tracks the "
+    "government-spending shock directly and does not depend on $\\hat k_t$ or "
+    "$\\hat c_t$ — so it can be solved on its own and fed into the two equations "
+    "above as a known forcing term:"
+)
+st.latex(r"\hat{k}^G_{t+1} = (1-\delta)\,\hat{k}^G_t + \delta\,\hat g_t")
+st.markdown(
+    "With one predetermined variable ($\\hat k_t$) and one jump variable "
+    "($\\hat c_t$), the system is **saddle-path stable**: there is exactly one "
+    "stable and one unstable eigenvalue of the reduced-form transition matrix. "
+    "The app diagonalizes that matrix and pins the unstable (forward-looking) "
+    "component to the present value of all *future* government-spending shocks — "
+    "the King-Plosser-Rebelo / Blanchard-Kahn method — rather than simulating "
+    "forward naively, which would blow up numerically as the unstable root gets "
+    "amplified hundreds of times over a long horizon. This is exactly the "
+    "computation behind every chart in **\"2. Transition dynamics\"** above."
+)
+
 st.divider()
 _emblem_path = Path(__file__).parent / "kgu_emblem.png"
 if _emblem_path.exists():
