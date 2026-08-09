@@ -71,7 +71,7 @@ financing = "lump_sum" if financing_label.startswith("Lump-sum") else "income_ta
 # 3. theta_G -----------------------------------------------------------------
 st.sidebar.subheader("3. Productive public capital")
 theta_G = st.sidebar.slider(
-    "Public-capital productivity, θ_G", 0.00, 0.40, 0.05, 0.01,
+    "Public-capital productivity, θ_G", 0.00, 0.40, 0.00, 0.01,
     help="Y = A·K^θK·(Kᴳ)^θG·N^θN. θG=0 means public investment is a pure resource "
          "cost with no productivity effect (Baxter & King's Table 4 grid runs 0-0.40).",
     key="theta_G",
@@ -103,7 +103,7 @@ st.sidebar.subheader("6. Composition of G")
 st.sidebar.caption("Government spending has no separate \"basic purchases\" term -- the "
                     "utility function never values government consumption directly -- so "
                     "it splits into just two pieces: public investment Iᴳ and transfers G_T.")
-f_IG_pct = st.sidebar.slider("Public investment share of G, Iᴳ/G (%)", 0.0, 100.0, 25.0, 5.0, key="f_IG_pct")
+f_IG_pct = st.sidebar.slider("Public investment share of G, Iᴳ/G (%)", 0.0, 100.0, 0.0, 5.0, key="f_IG_pct")
 f_GT_pct = 100.0 - f_IG_pct
 st.sidebar.caption(f"⇒ Transfers G_T/G = **{f_GT_pct:.0f}%** is the residual (100% − Iᴳ/G).")
 
@@ -214,7 +214,9 @@ else:
         right_label: [ss_new.Y, ss_new.C, ss_new.I, ss_new.K, ss_new.KG, ss_new.G,
                       ss_new.IG, ss_new.GT, ss_new.w, ss_new.tau * 100],
     })
+    both_zero = (ss_table[left_label] == 0) & (ss_table[right_label] == 0)
     ss_table["% change"] = 100 * (ss_table[right_label] / ss_table[left_label].replace(0, np.nan) - 1)
+    ss_table.loc[both_zero, "% change"] = 0.0
 
     st.dataframe(
         ss_table,
@@ -229,9 +231,11 @@ else:
 
     bar_vars = ["Output Y", "Consumption C", "Investment I", "Private capital K", "Public capital Kᴳ"]
     pct_change = ss_table.set_index("Variable").loc[bar_vars, "% change"]
-    fig_bar = go.Figure(go.Bar(x=bar_vars, y=pct_change.values,
-                                marker_color=["#2563eb" if v >= 0 else "#dc2626" for v in pct_change.values],
-                                text=[f"{v:+.2f}%" for v in pct_change.values], textposition="outside"))
+    bar_heights = pct_change.fillna(0.0).values
+    bar_text = [("n/a" if pd.isna(v) else f"{v:+.2f}%") for v in pct_change.values]
+    fig_bar = go.Figure(go.Bar(x=bar_vars, y=bar_heights,
+                                marker_color=["#2563eb" if v >= 0 else "#dc2626" for v in bar_heights],
+                                text=bar_text, textposition="outside"))
     fig_bar.update_layout(title="% change from the paper's benchmark calibration",
                            yaxis_title="% change", height=380, margin=dict(t=50, b=20))
     st.plotly_chart(fig_bar, use_container_width=True)
