@@ -52,17 +52,12 @@ model_type_label = st.sidebar.radio(
 )
 model_type = "dynamic" if model_type_label.startswith("Dynamic") else "static"
 
-# Preferences & technology ---------------------------------------------------
-st.sidebar.subheader("Preferences & technology")
-theta_N = st.sidebar.slider("Labor share of income, θₙ", 0.30, 0.80, 0.58, 0.01,
-                             help="Cobb-Douglas exponent on labor. Private capital's share is 1-θₙ.",
-                             key="theta_N")
-delta_pct = st.sidebar.slider("Depreciation rate, δ (%/yr, applies to K and Kᴳ)", 2.0, 20.0, 10.0, 0.5, key="delta_pct")
-N_target_pct = st.sidebar.slider("Target steady-state hours worked, N (% of time endowment)",
-                                  5.0, 45.0, 20.0, 1.0,
-                                  help="Pins down the leisure-preference weight θ_L "
-                                       "so that steady-state labor supply hits this target "
-                                       "at the baseline policy.", key="N_target_pct")
+# Fixed at the paper's benchmark calibration (Table 1): labor share of income,
+# depreciation rate, and target steady-state hours worked are no longer sidebar
+# controls.
+theta_N = 0.58
+delta_pct = 10.0
+N_target_pct = 20.0
 
 # 4. theta_G -----------------------------------------------------------------
 st.sidebar.subheader("4. Productive public capital")
@@ -86,8 +81,20 @@ st.sidebar.subheader("7. Composition of G")
 f_IG_pct = st.sidebar.slider("Public investment share of G, Iᴳ/G (%)", 0.0, 100.0, 25.0, 5.0, key="f_IG_pct")
 f_TR_pct = st.sidebar.slider("Transfers share of G, TR/G (%)", 0.0, 100.0 - f_IG_pct, 0.0, 5.0, key="f_TR_pct")
 f_GB_pct = 100.0 - f_IG_pct - f_TR_pct
-st.sidebar.caption(f"⇒ Basic purchases G_B/G = **{f_GB_pct:.0f}%**, "
-                    f"Public investment Iᴳ/G = **{f_IG_pct:.0f}%**, Transfers TR/G = **{f_TR_pct:.0f}%**")
+
+fig_comp = go.Figure()
+for name, val, color in [("Basic G_B", f_GB_pct, "#6b7280"),
+                          ("Public investment Iᴳ", f_IG_pct, "#16a34a"),
+                          ("Transfers TR", f_TR_pct, "#7c3aed")]:
+    fig_comp.add_trace(go.Bar(y=["G/Y"], x=[val], name=name, orientation="h",
+                               marker_color=color,
+                               text=f"{name.split()[-1]} {val:.0f}%" if val > 3 else "",
+                               textposition="inside", insidetextanchor="middle"))
+fig_comp.update_layout(barmode="stack", height=110, showlegend=False,
+                        margin=dict(l=0, r=0, t=0, b=0),
+                        xaxis=dict(range=[0, 100], showticklabels=False),
+                        yaxis=dict(showticklabels=False))
+st.sidebar.plotly_chart(fig_comp, use_container_width=True, config={"displayModeBar": False})
 
 st.sidebar.subheader("Policy experiment")
 
