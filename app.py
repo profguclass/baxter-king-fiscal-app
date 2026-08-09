@@ -46,35 +46,16 @@ theta_N = 0.58
 delta_pct = 10.0
 N_target_pct = 40.0
 
-# 1. Static vs Dynamic model -------------------------------------------------
-st.sidebar.subheader("1. Model type")
-model_type_label = st.sidebar.radio(
-    "Capital dynamics",
-    ["Dynamic (capital accumulates)", "Static (capital held fixed)"],
-    help="Dynamic: K and public capital K^G accumulate over time and the economy "
-         "follows a saddle-path transition. Static: K and K^G never change -- every "
-         "period is an independent equilibrium given fixed capital, so shock "
-         "duration (permanent vs. temporary) has no effect on the result.",
-    key="model_type_label",
-)
-model_type = "dynamic" if model_type_label.startswith("Dynamic") else "static"
-
-# 2. Duration ---------------------------------------------------------------
-st.sidebar.subheader("2. Duration of the change")
-permanent = True
+# 1. Duration ---------------------------------------------------------------
+st.sidebar.subheader("1. Duration of the change")
+duration_label = st.sidebar.radio("Duration", ["Permanent", "Temporary"], key="duration_label")
+permanent = duration_label == "Permanent"
 duration_years = 4
-if model_type == "dynamic":
-    duration_label = st.sidebar.radio("Duration", ["Permanent", "Temporary"], key="duration_label")
-    permanent = duration_label == "Permanent"
-    if not permanent:
-        duration_years = st.sidebar.slider("Duration (years)", 1, 20, 4, 1, key="duration_years")
-else:
-    st.sidebar.caption("Under the **Static** model type, permanent and temporary shocks "
-                        "give the identical per-period result (no capital to carry "
-                        "persistence), so this control is hidden.")
+if not permanent:
+    duration_years = st.sidebar.slider("Duration (years)", 1, 20, 4, 1, key="duration_years")
 
-# 3. Financing rule -----------------------------------------------------
-st.sidebar.subheader("3. How is the tax collected?")
+# 2. Financing rule -----------------------------------------------------
+st.sidebar.subheader("2. How is the tax collected?")
 financing_label = st.sidebar.radio(
     "Financing rule",
     ["Lump-sum (tax revenue collected without distorting labor/capital margins)",
@@ -86,8 +67,8 @@ financing_label = st.sidebar.radio(
 )
 financing = "lump_sum" if financing_label.startswith("Lump-sum") else "income_tax"
 
-# 4. theta_G -----------------------------------------------------------------
-st.sidebar.subheader("4. Productive public capital")
+# 3. theta_G -----------------------------------------------------------------
+st.sidebar.subheader("3. Productive public capital")
 theta_G = st.sidebar.slider(
     "Public-capital productivity, θ_G", 0.00, 0.40, 0.05, 0.01,
     help="Y = A·K^θK·(Kᴳ)^θG·N^θN. θG=0 means public investment is a pure resource "
@@ -95,19 +76,19 @@ theta_G = st.sidebar.slider(
     key="theta_G",
 )
 
-# 5. Steady-state real interest rate -----------------------------------------
-st.sidebar.subheader("5. Real interest rate")
+# 4. Steady-state real interest rate -----------------------------------------
+st.sidebar.subheader("4. Real interest rate")
 r_pct = st.sidebar.slider("Steady-state real interest rate, r (%/yr)", 1.0, 12.0, 6.5, 0.25, key="r_pct")
 
-# 6. Baseline fiscal policy: size and change ------------------------
-st.sidebar.subheader("6. Baseline government purchases")
+# 5. Baseline fiscal policy: size and change ------------------------
+st.sidebar.subheader("5. Baseline government purchases")
 s_G_old_pct = st.sidebar.slider("Baseline total government purchases, G/Y (%)", 5.0, 40.0, 20.0, 1.0, key="s_G_old_pct")
-st.sidebar.caption("Tax rate τ = G/Y always, under both financing rules above (item 3).")
+st.sidebar.caption("Tax rate τ = G/Y always, under both financing rules above (item 2).")
 
 delta_s_G_pct = st.sidebar.slider(
     "Change in government purchases, ΔG/Y (percentage points)", -10.0, 15.0, 5.0, 0.5,
     help="Expressed relative to the baseline G/Y set above, so the experiment is "
-         "never accidentally a zero-size change. Composition shares (item 7) stay fixed.",
+         "never accidentally a zero-size change. Composition shares (item 6) stay fixed.",
     key="delta_s_G_pct")
 s_G_new_pct_raw = s_G_old_pct + delta_s_G_pct
 s_G_new_pct = min(max(s_G_new_pct_raw, 1.0), 48.0)
@@ -115,8 +96,8 @@ if s_G_new_pct != s_G_new_pct_raw:
     st.sidebar.warning(f"New G/Y clamped to {s_G_new_pct:.1f}% (must stay between 1% and 48%).")
 st.sidebar.caption(f"New G/Y = {s_G_old_pct:.1f}% + {delta_s_G_pct:+.1f} = **{s_G_new_pct:.1f}%**")
 
-# 7. Composition of G ------------------------------------------------------
-st.sidebar.subheader("7. Composition of G")
+# 6. Composition of G ------------------------------------------------------
+st.sidebar.subheader("6. Composition of G")
 f_IG_pct = st.sidebar.slider("Public investment share of G, Iᴳ/G (%)", 0.0, 100.0, 25.0, 5.0, key="f_IG_pct")
 f_TR_pct = st.sidebar.slider("Transfers share of G, TR/G (%)", 0.0, 100.0 - f_IG_pct, 0.0, 5.0, key="f_TR_pct")
 f_GB_pct = 100.0 - f_IG_pct - f_TR_pct
@@ -165,7 +146,7 @@ try:
     experiment = run_experiment(
         theta_N=theta_N_v, delta=delta_v, r=r_v, A=1.0, theta_G=theta_G_v,
         s_G_old=s_G_old_v, s_G_new=s_G_new_v, f_GB=f_GB_v, f_IG=f_IG_v, f_TR=f_TR_v,
-        N_target=N_target_v, financing=financing, model_type=model_type,
+        N_target=N_target_v, financing=financing,
         permanent=permanent, duration_years=duration_years, T_sim=200,
     )
 except Exception as exc:  # noqa: BLE001 -- surface any parameter-infeasibility to the user
@@ -220,18 +201,10 @@ elif experiment.multiplier_long_run < 0:
 # 1. Steady-state / equilibrium comparison
 # --------------------------------------------------------------------------
 
-if model_type == "dynamic":
-    st.header("1. Comparative steady states")
-    st.write("Exact, closed-form solution of the model's long-run (“great ratios”) "
-             "equilibrium, before vs. after the policy change.")
-    left_label, right_label = "Original steady state", "New steady state"
-else:
-    st.header("1. Comparative equilibria (capital held fixed)")
-    st.write("Because the **Static** model type holds K and Kᴳ fixed, there is no new "
-             "long-run steady state to converge to — the table below compares the "
-             "original equilibrium to the new one-period equilibrium given the same "
-             "fixed capital stock.")
-    left_label, right_label = "Original equilibrium", "New equilibrium (K fixed)"
+st.header("1. Comparative steady states")
+st.write("Exact, closed-form solution of the model's long-run (“great ratios”) "
+         "equilibrium, before vs. after the policy change.")
+left_label, right_label = "Original steady state", "New steady state"
 
 ss_table = pd.DataFrame({
     "Variable": ["Output Y", "Consumption C", "Investment I", "Private capital K",
@@ -265,113 +238,99 @@ fig_bar.update_layout(title=f"% change from the {left_label.lower()}",
 st.plotly_chart(fig_bar, use_container_width=True)
 
 # --------------------------------------------------------------------------
-# 2. Transition dynamics (Dynamic model only)
+# 2. Transition dynamics
 # --------------------------------------------------------------------------
 
-if model_type == "dynamic":
-    st.header("2. Transition dynamics")
-    st.write("Perfect-foresight transition path (log-linearized around the relevant steady "
-             "state, solved exactly via eigen-decomposition -- no simulation noise). "
-             "All series are % deviations from the *original* steady state, matching "
-             "Figures 2-4 of the paper.")
+st.header("2. Transition dynamics")
+st.write("Perfect-foresight transition path (log-linearized around the relevant steady "
+         "state, solved exactly via eigen-decomposition -- no simulation noise). "
+         "All series are % deviations from the *original* steady state, matching "
+         "Figures 2-4 of the paper.")
 
-    years_to_show = st.slider("Years to display", 5, 100, 25, 5, key="years_to_show")
-    yrs = path.years[:years_to_show]
+years_to_show = st.slider("Years to display", 5, 100, 25, 5, key="years_to_show")
+yrs = path.years[:years_to_show]
 
-    def line_fig(title, series_specs, yaxis_title):
-        fig = go.Figure()
-        for name, arr, color in series_specs:
-            fig.add_trace(go.Scatter(x=yrs, y=arr[:years_to_show], mode="lines+markers",
-                                      name=name, line=dict(color=color, width=2), marker=dict(size=4)))
-        fig.add_hline(y=0, line_dash="dot", line_color="gray")
-        fig.update_layout(title=dict(text=title, y=0.98, yanchor="top"),
-                           xaxis_title="Years after the shock", yaxis_title=yaxis_title,
-                           height=420, legend=dict(orientation="h", y=1.18, yanchor="bottom"),
-                           margin=dict(t=110, b=20))
-        return fig
+def line_fig(title, series_specs, yaxis_title):
+    fig = go.Figure()
+    for name, arr, color in series_specs:
+        fig.add_trace(go.Scatter(x=yrs, y=arr[:years_to_show], mode="lines+markers",
+                                  name=name, line=dict(color=color, width=2), marker=dict(size=4)))
+    fig.add_hline(y=0, line_dash="dot", line_color="gray")
+    fig.update_layout(title=dict(text=title, y=0.98, yanchor="top"),
+                       xaxis_title="Years after the shock", yaxis_title=yaxis_title,
+                       height=420, legend=dict(orientation="h", y=1.18, yanchor="bottom"),
+                       margin=dict(t=110, b=20))
+    return fig
 
-    tab1, tab2, tab3 = st.tabs(["Commodity market", "Labor market", "Financial market"])
+tab1, tab2, tab3 = st.tabs(["Commodity market", "Labor market", "Financial market"])
 
-    with tab1:
-        st.plotly_chart(line_fig(
-            "Output, consumption, investment, government purchases",
-            [("Output (Y)", path.Y, "#2563eb"), ("Consumption (C)", path.C, "#16a34a"),
-             ("Investment (I)", path.I, "#f59e0b"), ("Government purchases (G)", path.G, "#6b7280")],
-            "% deviation from original steady state"), use_container_width=True)
-        st.caption("Compare to Baxter & King Figure 2 (permanent) / Figure 3 (temporary war) / "
-                   "Figure 4 (GRH). Watch the investment 'accelerator boom' on impact when the "
-                   "shock is permanent and lump-sum financed.")
+with tab1:
+    st.plotly_chart(line_fig(
+        "Output, consumption, investment, government purchases",
+        [("Output (Y)", path.Y, "#2563eb"), ("Consumption (C)", path.C, "#16a34a"),
+         ("Investment (I)", path.I, "#f59e0b"), ("Government purchases (G)", path.G, "#6b7280")],
+        "% deviation from original steady state"), use_container_width=True)
+    st.caption("Compare to Baxter & King Figure 2 (permanent) / Figure 3 (temporary war) / "
+               "Figure 4 (GRH). Watch the investment 'accelerator boom' on impact when the "
+               "shock is permanent and lump-sum financed.")
 
-    with tab2:
-        st.plotly_chart(line_fig(
-            "Labor input and the real wage",
-            [("Labor input (N)", path.N, "#2563eb"), ("Real wage (w)", path.W, "#dc2626")],
-            "% deviation from original steady state"), use_container_width=True)
-        st.caption("A permanent, lump-sum-financed increase in G is a negative wealth effect: "
-                   "households work more and consume less, so labor rises and (with capital "
-                   "predetermined) the wage falls on impact.")
+with tab2:
+    st.plotly_chart(line_fig(
+        "Labor input and the real wage",
+        [("Labor input (N)", path.N, "#2563eb"), ("Real wage (w)", path.W, "#dc2626")],
+        "% deviation from original steady state"), use_container_width=True)
+    st.caption("A permanent, lump-sum-financed increase in G is a negative wealth effect: "
+               "households work more and consume less, so labor rises and (with capital "
+               "predetermined) the wage falls on impact.")
 
-    with tab3:
-        st.plotly_chart(line_fig(
-            "Private and public capital stocks",
-            [("Private capital (K)", path.K, "#2563eb"), ("Public capital (Kᴳ)", path.KG, "#16a34a")],
-            "% deviation from original steady state"), use_container_width=True)
-        fig_r = go.Figure(go.Scatter(x=yrs, y=path.r_bp[:years_to_show], mode="lines+markers",
-                                      line=dict(color="#7c3aed", width=2)))
-        fig_r.add_hline(y=0, line_dash="dot", line_color="gray")
-        fig_r.update_layout(title="Real interest rate, deviation from steady state",
-                             xaxis_title="Years after the shock", yaxis_title="Basis points",
-                             height=350, margin=dict(t=50, b=20))
-        st.plotly_chart(fig_r, use_container_width=True)
-        st.caption("An unanticipated permanent increase in G should raise short real rates on "
-                   "impact -- the model's sharpest, most testable empirical prediction "
-                   "(Section III.E of the paper).")
-else:
-    st.header("2. Transition dynamics")
-    st.info("Not applicable under the **Static** model type: with capital held fixed, "
-            "there is no state variable to propagate a transition through — the economy "
-            "jumps directly to the new equilibrium shown in panel 1, for as long as the "
-            "shock lasts, and reverts immediately once it ends.")
+with tab3:
+    st.plotly_chart(line_fig(
+        "Private and public capital stocks",
+        [("Private capital (K)", path.K, "#2563eb"), ("Public capital (Kᴳ)", path.KG, "#16a34a")],
+        "% deviation from original steady state"), use_container_width=True)
+    fig_r = go.Figure(go.Scatter(x=yrs, y=path.r_bp[:years_to_show], mode="lines+markers",
+                                  line=dict(color="#7c3aed", width=2)))
+    fig_r.add_hline(y=0, line_dash="dot", line_color="gray")
+    fig_r.update_layout(title="Real interest rate, deviation from steady state",
+                         xaxis_title="Years after the shock", yaxis_title="Basis points",
+                         height=350, margin=dict(t=50, b=20))
+    st.plotly_chart(fig_r, use_container_width=True)
+    st.caption("An unanticipated permanent increase in G should raise short real rates on "
+               "impact -- the model's sharpest, most testable empirical prediction "
+               "(Section III.E of the paper).")
 
 # --------------------------------------------------------------------------
-# 3. Duration sensitivity (Table 3 style) -- Dynamic only
+# Duration sensitivity (Table 3 style)
 # --------------------------------------------------------------------------
 
-if model_type == "dynamic":
-    with st.expander("\U0001F4CA How much does the *duration* of a temporary shock matter? (Table 3 replication)"):
-        st.write("Holding the financing rule fixed, how does the impact-period output "
-                 "multiplier change as a temporary spending increase is made to last longer?")
-        durations = [1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 30]
-        mults = []
-        for T in durations:
-            try:
-                e = run_experiment(theta_N_v, delta_v, r_v, 1.0, theta_G_v, s_G_old_v, s_G_new_v,
-                                    f_GB_v, f_IG_v, f_TR_v, N_target_v, financing, "dynamic",
-                                    permanent=False, duration_years=T, T_sim=200)
-                mults.append(e.multiplier_impact)
-            except Exception:
-                mults.append(np.nan)
-        perm_e = run_experiment(theta_N_v, delta_v, r_v, 1.0, theta_G_v, s_G_old_v, s_G_new_v,
-                                 f_GB_v, f_IG_v, f_TR_v, N_target_v, financing, "dynamic",
-                                 permanent=True, T_sim=200)
-        fig_dur = go.Figure()
-        fig_dur.add_trace(go.Scatter(x=durations, y=mults, mode="lines+markers", name="Temporary shock"))
-        fig_dur.add_hline(y=perm_e.multiplier_impact, line_dash="dash", line_color="#dc2626",
-                           annotation_text="Permanent-shock impact multiplier")
-        fig_dur.update_layout(title="Impact multiplier vs. duration of the spending increase",
-                               xaxis_title="Duration (years)", yaxis_title="ΔY/ΔG on impact",
-                               height=380)
-        st.plotly_chart(fig_dur, use_container_width=True)
-        st.caption("Baxter & King's key point (Section IV): more *persistent* shocks produce "
-                   "larger short-run multipliers because consumers cannot smooth as easily "
-                   "when higher spending is known to last longer -- the opposite of the "
-                   "Barro-Hall intuition that temporary shocks should have larger effects.")
-else:
-    with st.expander("\U0001F4CA How much does the *duration* of a temporary shock matter? (Table 3 replication)"):
-        st.info("Not applicable under **Static**: since capital never adjusts, every period "
-                "is an independent equilibrium, so duration cannot change the per-period "
-                "multiplier (see the headline numbers above, which are identical whether "
-                "you'd call the shock permanent or temporary).")
+with st.expander("\U0001F4CA How much does the *duration* of a temporary shock matter? (Table 3 replication)"):
+    st.write("Holding the financing rule fixed, how does the impact-period output "
+             "multiplier change as a temporary spending increase is made to last longer?")
+    durations = [1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 30]
+    mults = []
+    for T in durations:
+        try:
+            e = run_experiment(theta_N_v, delta_v, r_v, 1.0, theta_G_v, s_G_old_v, s_G_new_v,
+                                f_GB_v, f_IG_v, f_TR_v, N_target_v, financing,
+                                permanent=False, duration_years=T, T_sim=200)
+            mults.append(e.multiplier_impact)
+        except Exception:
+            mults.append(np.nan)
+    perm_e = run_experiment(theta_N_v, delta_v, r_v, 1.0, theta_G_v, s_G_old_v, s_G_new_v,
+                             f_GB_v, f_IG_v, f_TR_v, N_target_v, financing,
+                             permanent=True, T_sim=200)
+    fig_dur = go.Figure()
+    fig_dur.add_trace(go.Scatter(x=durations, y=mults, mode="lines+markers", name="Temporary shock"))
+    fig_dur.add_hline(y=perm_e.multiplier_impact, line_dash="dash", line_color="#dc2626",
+                       annotation_text="Permanent-shock impact multiplier")
+    fig_dur.update_layout(title="Impact multiplier vs. duration of the spending increase",
+                           xaxis_title="Duration (years)", yaxis_title="ΔY/ΔG on impact",
+                           height=380)
+    st.plotly_chart(fig_dur, use_container_width=True)
+    st.caption("Baxter & King's key point (Section IV): more *persistent* shocks produce "
+               "larger short-run multipliers because consumers cannot smooth as easily "
+               "when higher spending is known to last longer -- the opposite of the "
+               "Barro-Hall intuition that temporary shocks should have larger effects.")
 
 # --------------------------------------------------------------------------
 # 3. Table 4 replication: public-capital productivity sensitivity
@@ -433,19 +392,17 @@ with st.expander("ℹ️ Methodology notes"):
 - **Steady state / equilibrium** is solved exactly (closed form, plus a small
   fixed-point iteration when θ_G>0 since public capital Kᴳ=Iᴳ/δ depends on Y) -- no
   numerical root-finding failure modes.
-- **Static vs. Dynamic**: Dynamic is the standard log-linearization around a steady
-  state, solved via eigen-decomposition of the reduced-form transition matrix
+- **Transition dynamics** are the standard log-linearization around a steady state,
+  solved via eigen-decomposition of the reduced-form transition matrix
   (King-Plosser-Rebelo / Blanchard-Kahn method); public capital's own law of motion
   decouples from the private-capital/consumption saddle path (it follows the exogenous
   spending path directly) so no 3-variable generalization of the eigen-decomposition is
-  needed. Static holds K and Kᴳ fixed forever (no accumulation equation at all), so
-  every period is an independent 2-equation static equilibrium and shock duration is
-  irrelevant.
-- **Financing (item 3)**: both "Lump-sum" and "Income tax" set τ = G/Y identically.
+  needed.
+- **Financing (item 2)**: both "Lump-sum" and "Income tax" set τ = G/Y identically.
   They differ only in whether that tax enters the household's labor-leisure and
   capital-Euler first-order conditions as a (1-τ) wedge (Income tax) or not (Lump-sum,
   a true non-distorting poll tax for revenue purposes).
-- **Composition (item 7)**: total government purchases G/Y is split into basic
+- **Composition (item 6)**: total government purchases G/Y is split into basic
   purchases G_B (pure resource cost), public investment Iᴳ (accumulates into Kᴳ,
   productivity-enhancing if θ_G>0), and transfers TR (resource-neutral, returned to
   households). Only G_B and Iᴳ enter the economy-wide resource constraint

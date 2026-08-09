@@ -9,8 +9,8 @@ The model:
   Preferences:      u_t = log(C_t) + theta_L * log(L_t),   L_t = 1 - N_t
   Technology:        Y_t = A * K_t^theta_K * KG_t^theta_G * N_t^theta_N
                      (theta_K = 1 - theta_N; KG = public capital stock)
-  Capital accum.:    K_{t+1}  = (1-delta) K_t  + I_t     [only if model_type="dynamic"]
-                     KG_{t+1} = (1-delta) KG_t + IG_t    [only if model_type="dynamic"]
+  Capital accum.:    K_{t+1}  = (1-delta) K_t  + I_t
+                     KG_{t+1} = (1-delta) KG_t + IG_t
   Resource constr.:  Y_t = C_t + I_t + G_B,t + IG_t       (transfers TR are not resource-using)
   Government budget: tau_t * Y_t = G_B,t + IG_t + TR_t,   tau_t = (G_B,t+IG_t+TR_t)/Y_t
                       -- i.e. the tax rate always equals total government purchases as a
@@ -33,20 +33,10 @@ the total government-purchases ratio s_G = G_B/Y + IG/Y + TR/Y:
             raises the productivity of private capital and labor (theta_G).
   * TR   -- lump-sum transfers back to households; resource-neutral in aggregate.
 
-Two model types:
-
-  * "dynamic"  -- capital (K and KG) accumulates according to the laws of motion
-                  above; the equilibrium has predetermined capital and a
-                  forward-looking jump variable (consumption), solved exactly via
-                  eigen-decomposition of the reduced-form transition matrix
-                  (King-Plosser-Rebelo / Blanchard-Kahn method).
-  * "static"   -- capital (K and KG) is held fixed at its initial level forever (no
-                  accumulation equation at all); each period is an independent
-                  static equilibrium (labor supply given fixed capital, consumption
-                  pinned by the resource constraint with investment fixed at pure
-                  replacement, I=delta*K). There is no forward-looking propagation,
-                  so shock duration (permanent vs. temporary) does not matter for
-                  the per-period multiplier.
+Capital (K and KG) accumulates according to the laws of motion above; the
+equilibrium has predetermined capital and a forward-looking jump variable
+(consumption), solved exactly via eigen-decomposition of the reduced-form
+transition matrix (King-Plosser-Rebelo / Blanchard-Kahn method).
 
 All quantities are expressed as *fractions of the time-endowment / output*
 (the model's "great ratios"), so the code is scale free: only ratios (shares,
@@ -61,7 +51,6 @@ from typing import Literal, Optional
 import numpy as np
 
 Financing = Literal["lump_sum", "income_tax"]
-ModelType = Literal["static", "dynamic"]
 
 
 # --------------------------------------------------------------------------
@@ -347,21 +336,6 @@ def _solve_saddle_path(Phi_kk: float, Phi_kc: float, Phi_kg: float, Phi_k_kg: fl
     return z[0, :], z[1, :]
 
 
-def _solve_static(y_c: float, y_g: float, y_kg: float, s_C: float, s_GR: float,
-                   g_full: np.ndarray, kg_full: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Static model: capital fixed (k_hat=0 always), so each period is an independent
-    2-equation system:
-        y_hat = y_c*c_hat + y_g*g_hat + y_kg*kg_hat
-        c_hat = (y_hat - s_GR*g_hat) / s_C
-    Solved in closed form; returns (c_hat, y_hat) paths. No persistence across periods."""
-    rhs = g_full * y_g + kg_full * y_kg
-    # y_hat*(1 - y_c/s_C) = rhs - y_c*s_GR*g_full/s_C
-    denom = 1.0 - y_c / s_C
-    y_hat = (rhs - y_c * s_GR * g_full / s_C) / denom
-    c_hat = (y_hat - s_GR * g_full) / s_C
-    return c_hat, y_hat
-
-
 @dataclass
 class TransitionPath:
     years: np.ndarray
@@ -376,13 +350,11 @@ class TransitionPath:
     r_bp: np.ndarray  # real interest rate, deviation in basis points (annualized)
 
 
-def simulate_transition(ss_ref: SteadyState, g_path: np.ndarray, model_type: ModelType,
+def simulate_transition(ss_ref: SteadyState, g_path: np.ndarray,
                          k0: float = 0.0, kg0: float = 0.0, T_sim: int = 300) -> TransitionPath:
     """Simulate the perfect-foresight transition path in log-deviations from steady
     state `ss_ref`, given an exogenous path of government-purchases log-deviations
-    `g_path` (padded with zeros afterwards) and initial capital log-deviations k0/kg0.
-    Static models ignore k0/kg0 (capital is always at 0 deviation) and have no
-    persistence; dynamic models solve the full saddle path."""
+    `g_path` (padded with zeros afterwards) and initial capital log-deviations k0/kg0."""
     coeffs = _log_linear_coeffs(ss_ref)
     y_k, y_kg, y_c, y_g, s_GR = coeffs["y_k"], coeffs["y_kg"], coeffs["y_c"], coeffs["y_g"], coeffs["s_GR"]
 
@@ -393,17 +365,12 @@ def simulate_transition(ss_ref: SteadyState, g_path: np.ndarray, model_type: Mod
     L = ss_ref.L
     tau = ss_ref.tau
 
-    if model_type == "static":
-        kg_full = np.zeros(T_sim)
-        c, y = _solve_static(y_c, y_g, y_kg, ss_ref.s_C, s_GR, g_full, kg_full)
-        k = np.zeros(T_sim)
-    else:
-        kg_full_ext = _kg_hat_path(ss_ref.delta, g_full, kg0)  # length T_sim+1
-        k, c = _solve_saddle_path(coeffs["Phi_kk"], coeffs["Phi_kc"], coeffs["Phi_kg"], coeffs["Phi_k_kg"],
-                                   coeffs["coef_c"], coeffs["coef_k"], coeffs["coef_g"], coeffs["coef_kg"],
-                                   k0, g_full, kg_full_ext)
-        kg_full = kg_full_ext[:T_sim]
-        y = y_k * k + y_kg * kg_full + y_c * c + y_g * g_full
+    kg_full_ext = _kg_hat_path(ss_ref.delta, g_full, kg0)  # length T_sim+1
+    k, c = _solve_saddle_path(coeffs["Phi_kk"], coeffs["Phi_kc"], coeffs["Phi_kg"], coeffs["Phi_k_kg"],
+                               coeffs["coef_c"], coeffs["coef_k"], coeffs["coef_g"], coeffs["coef_kg"],
+                               k0, g_full, kg_full_ext)
+    kg_full = kg_full_ext[:T_sim]
+    y = y_k * k + y_kg * kg_full + y_c * c + y_g * g_full
 
     if ss_ref.distortionary:
         n = L * (y - c) - (L * tau / (1.0 - tau)) * (g_full - y)
@@ -411,7 +378,7 @@ def simulate_transition(ss_ref: SteadyState, g_path: np.ndarray, model_type: Mod
         n = L * (y - c)
     w = y - n  # wage = MPL, log-deviation
 
-    i = (y - ss_ref.s_C * c - s_GR * g_full) / ss_ref.s_I if model_type == "dynamic" else np.zeros(T_sim)
+    i = (y - ss_ref.s_C * c - s_GR * g_full) / ss_ref.s_I
 
     c_pct = 100.0 * c
     y_pct = 100.0 * y
@@ -423,9 +390,8 @@ def simulate_transition(ss_ref: SteadyState, g_path: np.ndarray, model_type: Mod
     g_pct = 100.0 * g_full
 
     r_dev_bp = np.zeros_like(c)
-    if model_type == "dynamic":
-        r_dev_bp[:-1] = 10000.0 * (1.0 + ss_ref.r) * (c[1:] - c[:-1])
-        r_dev_bp[-1] = r_dev_bp[-2]
+    r_dev_bp[:-1] = 10000.0 * (1.0 + ss_ref.r) * (c[1:] - c[:-1])
+    r_dev_bp[-1] = r_dev_bp[-2]
 
     years = np.arange(T_sim)
     return TransitionPath(years=years, Y=y_pct, C=c_pct, I=i_pct, K=k_pct, KG=kg_pct, N=n_pct,
@@ -447,7 +413,7 @@ class PolicyExperiment:
 
 def run_experiment(theta_N: float, delta: float, r: float, A: float, theta_G: float,
                     s_G_old: float, s_G_new: float, f_GB: float, f_IG: float, f_TR: float,
-                    N_target: float, financing: Financing, model_type: ModelType,
+                    N_target: float, financing: Financing,
                     permanent: bool, duration_years: int = 4, T_sim: int = 300) -> PolicyExperiment:
     """Full comparative-steady-state + transition-path experiment for a change in total
     government purchases from s_G_old to s_G_new, holding the composition fractions
@@ -466,20 +432,7 @@ def run_experiment(theta_N: float, delta: float, r: float, A: float, theta_G: fl
     dG = ss_new.G - ss_old.G
     multiplier_long_run = dY / dG if abs(dG) > 1e-12 else float("nan")
 
-    if model_type == "static":
-        # No persistence: "permanent" and "temporary" collapse to the same per-period
-        # result, so we just report the single-period shock (duration_years periods for
-        # a temporary shock, or a constant path for a permanent one) around the OLD
-        # steady state (capital never moves, so there is no new reference steady state
-        # to linearize around).
-        ss_ref = ss_old
-        k0 = 0.0
-        kg0 = 0.0
-        dG_frac = (ss_new.G - ss_old.G) / ss_old.G if ss_old.G != 0 else 0.0
-        g_level = np.log(1.0 + dG_frac)
-        n_periods = T_sim if permanent else duration_years
-        g_path = np.concatenate([np.full(min(n_periods, T_sim), g_level), np.zeros(1)])
-    elif permanent:
+    if permanent:
         ss_ref = ss_new
         k0 = np.log(ss_old.K / ss_new.K)
         kg0 = np.log(ss_old.KG / ss_new.KG) if ss_new.KG > 0 else 0.0
@@ -492,7 +445,7 @@ def run_experiment(theta_N: float, delta: float, r: float, A: float, theta_G: fl
         g_level = np.log(1.0 + dG_frac)
         g_path = np.concatenate([np.full(duration_years, g_level), np.zeros(1)])
 
-    path = simulate_transition(ss_ref, g_path, model_type, k0=k0, kg0=kg0, T_sim=T_sim)
+    path = simulate_transition(ss_ref, g_path, k0=k0, kg0=kg0, T_sim=T_sim)
 
     Y_level_0 = ss_ref.Y * float(np.exp(path.Y[0] / 100.0))
     dY0 = Y_level_0 - ss_old.Y
@@ -504,7 +457,7 @@ def run_experiment(theta_N: float, delta: float, r: float, A: float, theta_G: fl
 
     path.Y = shift(path.Y, ss_ref.Y, ss_old.Y)
     path.C = shift(path.C, ss_ref.C, ss_old.C)
-    path.I = shift(path.I, ss_ref.I, ss_old.I) if model_type == "dynamic" else np.full_like(path.I, np.nan)
+    path.I = shift(path.I, ss_ref.I, ss_old.I)
     path.K = shift(path.K, ss_ref.K, ss_old.K)
     if ss_ref.KG > 0 and ss_old.KG > 0:
         path.KG = shift(path.KG, ss_ref.KG, ss_old.KG)
@@ -512,9 +465,7 @@ def run_experiment(theta_N: float, delta: float, r: float, A: float, theta_G: fl
         path.KG = np.zeros_like(path.KG)
     path.N = shift(path.N, ss_ref.N, ss_old.N)
     path.W = shift(path.W, ss_ref.w, ss_old.w)
-    if model_type == "static":
-        path.G = shift(path.G, ss_ref.G, ss_old.G)
-    elif permanent:
+    if permanent:
         path.G = np.full_like(path.G, 100.0 * np.log(ss_new.G / ss_old.G))
     else:
         path.G = shift(path.G, ss_ref.G, ss_old.G)

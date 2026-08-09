@@ -25,35 +25,23 @@ dG_small = 0.001
 
 # --- Permanent, lump-sum: expect long-run multiplier ~1.13-1.16 ------------
 exp_perm = run_experiment(theta_N, delta, r, A, 0.0, s_G, s_G + dG_small, 1.0, 0.0, 0.0,
-                           N_target, financing="lump_sum", model_type="dynamic", permanent=True)
+                           N_target, financing="lump_sum", permanent=True)
 print(f"[Permanent, lump-sum] long-run multiplier dY/dG = {exp_perm.multiplier_long_run:.3f}  (paper: ~1.16)")
 print(f"[Permanent, lump-sum] impact multiplier (t=0)     = {exp_perm.multiplier_impact:.3f}  (paper: ~0.86)")
 print()
 
 # --- Temporary 4-year war, lump-sum: expect impact multiplier ~0.5-0.6 -----
 exp_temp4 = run_experiment(theta_N, delta, r, A, 0.0, s_G, s_G + dG_small, 1.0, 0.0, 0.0,
-                            N_target, financing="lump_sum", model_type="dynamic",
+                            N_target, financing="lump_sum",
                             permanent=False, duration_years=4)
 print(f"[Temporary 4yr, lump-sum] impact multiplier (t=0) = {exp_temp4.multiplier_impact:.3f}  (paper Table 3: ~0.56)")
 print()
 
 # --- Income tax (GRH-style): expect NEGATIVE long-run multiplier ~ -1.10 --
 exp_grh = run_experiment(theta_N, delta, r, A, 0.0, s_G, s_G + dG_small, 1.0, 0.0, 0.0,
-                          N_target, financing="income_tax", model_type="dynamic", permanent=True)
+                          N_target, financing="income_tax", permanent=True)
 print(f"[Permanent, income tax] long-run multiplier dY/dG = {exp_grh.multiplier_long_run:.3f}  (paper: -1.10)")
 assert exp_grh.multiplier_long_run < 0, "income-tax financing should give a negative long-run multiplier"
-print()
-
-# --- Static model: duration must not matter ---------------------------------
-exp_static_perm = run_experiment(theta_N, delta, r, A, 0.0, s_G, s_G + 0.05, 1.0, 0.0, 0.0,
-                                  N_target, financing="lump_sum", model_type="static", permanent=True)
-exp_static_temp = run_experiment(theta_N, delta, r, A, 0.0, s_G, s_G + 0.05, 1.0, 0.0, 0.0,
-                                  N_target, financing="lump_sum", model_type="static",
-                                  permanent=False, duration_years=4)
-print(f"[Static] permanent long-run mult = {exp_static_perm.multiplier_long_run:.4f}, "
-      f"temporary long-run mult = {exp_static_temp.multiplier_long_run:.4f}")
-assert abs(exp_static_perm.multiplier_long_run - exp_static_temp.multiplier_long_run) < 1e-9, \
-    "static model's multiplier must be independent of duration"
 print()
 
 # --- Public investment (Table 4 style), theta_G=0 baseline must match k_adj/direct=0 at 0 ---
@@ -68,7 +56,7 @@ print()
 
 # --- theta_G>0 dynamic path must run without error and Kᴳ must build up ----
 exp_pub = run_experiment(theta_N, delta, r, A, 0.05, s_G, s_G + 0.05, 0.7, 0.25, 0.05,
-                          N_target, financing="lump_sum", model_type="dynamic", permanent=True)
+                          N_target, financing="lump_sum", permanent=True)
 assert exp_pub.path.KG[1] > exp_pub.path.KG[0], "public capital should build up gradually, not jump"
 print(f"[theta_G=0.05, dynamic] long-run multiplier = {exp_pub.multiplier_long_run:.3f}; "
       f"KG path[0:5] = {np.round(exp_pub.path.KG[:5], 3)}")
