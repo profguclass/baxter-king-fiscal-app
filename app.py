@@ -236,11 +236,11 @@ else:
 ss_table = pd.DataFrame({
     "Variable": ["Output Y", "Consumption C", "Investment I", "Private capital K",
                  "Public capital Kᴳ", "Government purchases G (total)",
-                 "Labor input N (% of time)", "Real wage w", "Tax rate τ (%)"],
+                 "Real wage w", "Tax rate τ (%)"],
     left_label: [ss_old.Y, ss_old.C, ss_old.I, ss_old.K, ss_old.KG, ss_old.G,
-                 ss_old.N * 100, ss_old.w, ss_old.tau * 100],
+                 ss_old.w, ss_old.tau * 100],
     right_label: [ss_new.Y, ss_new.C, ss_new.I, ss_new.K, ss_new.KG, ss_new.G,
-                  ss_new.N * 100, ss_new.w, ss_new.tau * 100],
+                  ss_new.w, ss_new.tau * 100],
 })
 ss_table["% change"] = 100 * (ss_table[right_label] / ss_table[left_label].replace(0, np.nan) - 1)
 
@@ -284,8 +284,10 @@ if model_type == "dynamic":
             fig.add_trace(go.Scatter(x=yrs, y=arr[:years_to_show], mode="lines+markers",
                                       name=name, line=dict(color=color, width=2), marker=dict(size=4)))
         fig.add_hline(y=0, line_dash="dot", line_color="gray")
-        fig.update_layout(title=title, xaxis_title="Years after the shock", yaxis_title=yaxis_title,
-                           height=380, legend=dict(orientation="h", y=1.15), margin=dict(t=70, b=20))
+        fig.update_layout(title=dict(text=title, y=0.98, yanchor="top"),
+                           xaxis_title="Years after the shock", yaxis_title=yaxis_title,
+                           height=420, legend=dict(orientation="h", y=1.18, yanchor="bottom"),
+                           margin=dict(t=110, b=20))
         return fig
 
     tab1, tab2, tab3 = st.tabs(["Commodity market", "Labor market", "Financial market"])
@@ -380,8 +382,9 @@ st.write(
     "Baxter & King's Section VI: public investment directly raises the productivity of "
     "private capital and labor, "
     r"$Y = A\,K^{\theta_K}\,(K^G)^{\theta_G}\,N^{\theta_N}$. "
-    "Below: the long-run output effect of a marginal dollar of public investment, for a "
-    "grid of θ_G. The row matching the sidebar's current θ_G is highlighted."
+    "Below: the long-run effect of a marginal dollar of public investment on output, "
+    "consumption, and investment, for a grid of θ_G. The row matching the sidebar's "
+    "current θ_G is highlighted."
 )
 theta_G_grid = np.array([0.0, 0.01, 0.03, 0.05, 0.08, 0.10, 0.15, 0.20, 0.30, 0.40])
 try:
@@ -393,9 +396,9 @@ try:
                                       s_IG=max(s_G_old_v * f_IG_v, 1e-4))
     table4 = pd.DataFrame({
         "θ_G": tbl["theta_G"],
-        "(i) Direct effect (K, N fixed)": tbl["direct"],
-        "(ii) Private capital adjusts (N fixed)": tbl["k_adj"],
-        "(iii) Full general equilibrium (K and N adjust)": tbl["both"],
+        "ΔY / ΔIᴳ": tbl["both"],
+        "ΔC / ΔIᴳ": tbl["dC"],
+        "ΔI / ΔIᴳ": tbl["dI"],
     })
     closest_idx = int(np.argmin(np.abs(table4["θ_G"] - theta_G_v)))
 
@@ -405,18 +408,17 @@ try:
     st.dataframe(
         table4.style.apply(_highlight_current, axis=1).format({
             "θ_G": "{:.2f}",
-            "(i) Direct effect (K, N fixed)": "{:.2f}",
-            "(ii) Private capital adjusts (N fixed)": "{:.2f}",
-            "(iii) Full general equilibrium (K and N adjust)": "{:.2f}",
+            "ΔY / ΔIᴳ": "{:.2f}",
+            "ΔC / ΔIᴳ": "{:.2f}",
+            "ΔI / ΔIᴳ": "{:.2f}",
         }),
         hide_index=True,
         use_container_width=True,
     )
     st.caption("Even mildly productive public capital (θ_G ≈ 0.03-0.05, "
-               "Baxter & King's benchmark) generates a long-run multiplier several "
-               "times larger than basic government purchases, and most of the effect "
-               "comes from the *supply-side response* of private labor and capital "
-               "(column iii vs. column i), not the direct productivity gain.")
+               "Baxter & King's benchmark) generates a long-run output multiplier several "
+               "times larger than basic government purchases, driven by the full "
+               "general-equilibrium response of private capital and labor.")
 except Exception as exc:  # noqa: BLE001
     st.error(f"Could not compute Table 4 with the current sidebar settings: {exc}")
 
@@ -443,9 +445,11 @@ if model_type == "dynamic":
             fig5.add_trace(go.Scatter(x=yrs5, y=arr[:years_to_show5], mode="lines+markers",
                                        name=name, line=dict(color=color, width=2), marker=dict(size=4)))
         fig5.add_hline(y=0, line_dash="dot", line_color="gray")
-        fig5.update_layout(title="Dynamic response to the public-investment-financed policy change",
-                            xaxis_title="Years after the shock", yaxis_title="% deviation from original steady state",
-                            height=420, legend=dict(orientation="h", y=1.15))
+        fig5.update_layout(
+            title=dict(text="Dynamic response to the public-investment-financed policy change",
+                       y=0.98, yanchor="top"),
+            xaxis_title="Years after the shock", yaxis_title="% deviation from original steady state",
+            height=460, legend=dict(orientation="h", y=1.18, yanchor="bottom"), margin=dict(t=110))
         st.plotly_chart(fig5, use_container_width=True)
         st.caption("Public capital Kᴳ builds up gradually (it accumulates from Iᴳ just like "
                    "private capital), so its productivity boost to output phases in over time "
