@@ -35,9 +35,18 @@ st.sidebar.title("\U0001F3DB️ Model controls")
 st.sidebar.caption("Baxter & King (1993, *AER*), “Fiscal Policy in General "
                     "Equilibrium.” Adjust anything below and every panel updates.")
 
+if "reset_version" not in st.session_state:
+    st.session_state["reset_version"] = 0
+
+def wkey(name: str) -> str:
+    """Version every widget key with the reset counter, so clicking Reset forces
+    Streamlit to fully remount each widget at its coded default -- merely deleting
+    session_state and rerunning does not reliably redraw slider handles/labels
+    client-side, even though the underlying computed value does reset correctly."""
+    return f"{name}_{st.session_state['reset_version']}"
+
 if st.sidebar.button("↺ Reset to paper's benchmark calibration", use_container_width=True):
-    for k in list(st.session_state.keys()):
-        del st.session_state[k]
+    st.session_state["reset_version"] += 1
     st.rerun()
 
 # Fixed at the paper's benchmark calibration (Table 1): labor share of income,
@@ -49,11 +58,11 @@ N_target_pct = 20.0
 
 # 1. Duration ---------------------------------------------------------------
 st.sidebar.subheader("1. Duration of the change")
-duration_label = st.sidebar.radio("Duration", ["Permanent", "Temporary"], key="duration_label")
+duration_label = st.sidebar.radio("Duration", ["Permanent", "Temporary"], key=wkey("duration_label"))
 permanent = duration_label == "Permanent"
 duration_years = 4
 if not permanent:
-    duration_years = st.sidebar.slider("Duration (years)", 1, 20, 4, 1, key="duration_years")
+    duration_years = st.sidebar.slider("Duration (years)", 1, 20, 4, 1, key=wkey("duration_years"))
 
 # 2. Financing rule -----------------------------------------------------
 st.sidebar.subheader("2. How is the tax collected?")
@@ -64,7 +73,7 @@ financing_label = st.sidebar.radio(
     help="Both options collect the SAME tax revenue: τ = G/Y always. They differ only "
          "in whether that tax distorts the household's labor-leisure and capital-Euler "
          "first-order conditions.",
-    key="financing_label",
+    key=wkey("financing_label"),
 )
 financing = "lump_sum" if financing_label.startswith("Lump-sum") else "income_tax"
 
@@ -74,16 +83,16 @@ theta_G = st.sidebar.slider(
     "Public-capital productivity, θ_G", 0.00, 0.40, 0.00, 0.01,
     help="Y = A·K^θK·(Kᴳ)^θG·N^θN. θG=0 means public investment is a pure resource "
          "cost with no productivity effect (Baxter & King's Table 4 grid runs 0-0.40).",
-    key="theta_G",
+    key=wkey("theta_G"),
 )
 
 # 4. Steady-state real interest rate -----------------------------------------
 st.sidebar.subheader("4. Real interest rate")
-r_pct = st.sidebar.slider("Steady-state real interest rate, r (%/yr)", 1.0, 12.0, 6.5, 0.25, key="r_pct")
+r_pct = st.sidebar.slider("Steady-state real interest rate, r (%/yr)", 1.0, 12.0, 6.5, 0.25, key=wkey("r_pct"))
 
 # 5. Baseline fiscal policy: size and change ------------------------
 st.sidebar.subheader("5. Baseline government spending")
-s_G_old_pct = st.sidebar.slider("Baseline total government spending, G/Y (%)", 5.0, 40.0, 20.0, 1.0, key="s_G_old_pct")
+s_G_old_pct = st.sidebar.slider("Baseline total government spending, G/Y (%)", 5.0, 40.0, 20.0, 1.0, key=wkey("s_G_old_pct"))
 st.sidebar.caption("Tax rate τ = G/Y always, under both financing rules above (item 2).")
 
 delta_s_G_pct = st.sidebar.slider(
@@ -91,7 +100,7 @@ delta_s_G_pct = st.sidebar.slider(
     help="Expressed relative to the baseline G/Y set above. Defaults to 0 (no policy "
          "change yet) -- move this slider to run an experiment. Composition shares "
          "(item 6) stay fixed.",
-    key="delta_s_G_pct")
+    key=wkey("delta_s_G_pct"))
 s_G_new_pct_raw = s_G_old_pct + delta_s_G_pct
 s_G_new_pct = min(max(s_G_new_pct_raw, 1.0), 48.0)
 if s_G_new_pct != s_G_new_pct_raw:
@@ -103,7 +112,7 @@ st.sidebar.subheader("6. Composition of G")
 st.sidebar.caption("Government spending has no separate \"basic purchases\" term -- the "
                     "utility function never values government consumption directly -- so "
                     "it splits into just two pieces: public investment Iᴳ and transfers G_T.")
-f_IG_pct = st.sidebar.slider("Public investment share of G, Iᴳ/G (%)", 0.0, 100.0, 0.0, 5.0, key="f_IG_pct")
+f_IG_pct = st.sidebar.slider("Public investment share of G, Iᴳ/G (%)", 0.0, 100.0, 0.0, 5.0, key=wkey("f_IG_pct"))
 f_GT_pct = 100.0 - f_IG_pct
 st.sidebar.caption(f"⇒ Transfers G_T/G = **{f_GT_pct:.0f}%** is the residual (100% − Iᴳ/G).")
 
@@ -179,6 +188,7 @@ BENCH_distortionary = False
 
 benchmark_error = None
 ss_benchmark = None
+ss_current = None
 try:
     theta_L_bench = calibrate_theta_L(BENCH_theta_N, BENCH_delta, BENCH_r, 1.0, BENCH_theta_G,
                                        BENCH_s_G * BENCH_f_IG, BENCH_s_G * BENCH_f_GT,
@@ -186,6 +196,15 @@ try:
     ss_benchmark = steady_state_for_policy(BENCH_theta_N, BENCH_delta, BENCH_r, 1.0, BENCH_theta_G,
                                             BENCH_s_G, BENCH_f_IG, BENCH_f_GT,
                                             theta_L_bench, BENCH_distortionary)
+    # Use the SAME (benchmark) theta_L for "current settings" -- if we instead let each
+    # sidebar configuration recalibrate its own theta_L (as run_experiment does for the
+    # ΔG/Y experiment specifically), hours worked would always land back on exactly
+    # N_target by construction, silently masking any real labor-supply response to
+    # composition/financing/θ_G/r and dumping the whole adjustment onto consumption.
+    # Holding theta_L fixed at the benchmark's value lets N move honestly here.
+    ss_current = steady_state_for_policy(theta_N_v, delta_v, r_v, 1.0, theta_G_v,
+                                          s_G_new_v, f_IG_v, f_GT_v,
+                                          theta_L_bench, financing == "income_tax")
 except Exception as exc:  # noqa: BLE001
     benchmark_error = str(exc)
 
@@ -208,11 +227,13 @@ else:
         "Variable": ["Output Y", "Consumption C", "Investment I", "Private capital K",
                      "Public capital Kᴳ", "Government spending G (total)",
                      "  Public investment Iᴳ", "  Transfers G_T",
-                     "Real wage w", "Tax rate τ (%)"],
+                     "Labor input N (% of time)", "Real wage w", "Tax rate τ (%)"],
         left_label: [ss_benchmark.Y, ss_benchmark.C, ss_benchmark.I, ss_benchmark.K, ss_benchmark.KG,
-                     ss_benchmark.G, ss_benchmark.IG, ss_benchmark.GT, ss_benchmark.w, ss_benchmark.tau * 100],
-        right_label: [ss_new.Y, ss_new.C, ss_new.I, ss_new.K, ss_new.KG, ss_new.G,
-                      ss_new.IG, ss_new.GT, ss_new.w, ss_new.tau * 100],
+                     ss_benchmark.G, ss_benchmark.IG, ss_benchmark.GT, ss_benchmark.N * 100,
+                     ss_benchmark.w, ss_benchmark.tau * 100],
+        right_label: [ss_current.Y, ss_current.C, ss_current.I, ss_current.K, ss_current.KG, ss_current.G,
+                      ss_current.IG, ss_current.GT, ss_current.N * 100,
+                      ss_current.w, ss_current.tau * 100],
     })
     both_zero = (ss_table[left_label] == 0) & (ss_table[right_label] == 0)
     ss_table["% change"] = 100 * (ss_table[right_label] / ss_table[left_label].replace(0, np.nan) - 1)
@@ -287,7 +308,7 @@ else:
              "All series are % deviations from the *original* steady state, matching "
              "Figures 2-4 of the paper.")
 
-    years_to_show = st.slider("Years to display", 5, 100, 25, 5, key="years_to_show")
+    years_to_show = st.slider("Years to display", 5, 100, 25, 5, key=wkey("years_to_show"))
     yrs = path.years[:years_to_show]
 
     def line_fig(title, series_specs, yaxis_title):
@@ -382,8 +403,12 @@ st.write(
     "private capital and labor, "
     r"$Y = A\,K^{\theta_K}\,(K^G)^{\theta_G}\,N^{\theta_N}$. "
     "Below: the long-run effect of a marginal dollar of public investment on output, "
-    "consumption, and investment, for a grid of θ_G. The row matching the sidebar's "
-    "current θ_G is highlighted."
+    "consumption, and investment, for a grid of θ_G -- **net of the θ_G=0 baseline**, "
+    "so a purely unproductive dollar of public investment (θ_G=0) always shows exactly "
+    "0 here; what's shown is the *extra* effect that comes specifically from public "
+    "capital's productivity, isolated from the generic \"more government resource claims "
+    "raise labor supply\" effect already visible in the headline multiplier above. The "
+    "row matching the sidebar's current θ_G is highlighted."
 )
 theta_G_grid = np.array([0.0, 0.01, 0.03, 0.05, 0.08, 0.10, 0.15, 0.20, 0.30, 0.40])
 try:
@@ -415,8 +440,8 @@ try:
         use_container_width=True,
     )
     st.caption("Even mildly productive public capital (θ_G ≈ 0.03-0.05, "
-               "Baxter & King's benchmark) generates a long-run output multiplier several "
-               "times larger than basic government spending, driven by the full "
+               "Baxter & King's benchmark) generates a sizable *additional* long-run "
+               "output effect beyond the θ_G=0 baseline, driven by the full "
                "general-equilibrium response of private capital and labor.")
 except Exception as exc:  # noqa: BLE001
     st.error(f"Could not compute Table 4 with the current sidebar settings: {exc}")

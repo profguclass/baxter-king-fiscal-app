@@ -87,6 +87,11 @@ def _supply_side_impl(theta_N: float, delta: float, r: float, A: float, tau: flo
             alpha_guess = alpha_new
         alpha = alpha_guess
         KG = s_IG * alpha / delta  # KG per unit of N
+    elif s_IG > 0:
+        # theta_G=0: public capital is not productive, but it still physically
+        # accumulates from investment (KG=IG/delta at steady state) -- no fixed
+        # point needed here since KG^0=1 means it can't feed back into alpha/kappa.
+        KG = s_IG * alpha / delta
     w = theta_N * alpha
     q = tax_factor * theta_K * alpha / kappa
     s_I = delta * kappa / alpha
@@ -483,10 +488,20 @@ def public_investment_long_run(theta_N: float, delta: float, r: float, A: float,
     for a grid of theta_G (public-capital productivity parameter), holding the
     public-investment share s_IG = IG/Y fixed and transfers s_GT fixed.
 
+    A marginal dollar of IG at s_GT held fixed always removes a dollar of resources
+    from the household (transfers are resource-neutral, IG is not) -- so even at
+    theta_G=0 it triggers the same negative-wealth-effect labor-supply response that
+    drives the main experiment's multiplier, independent of whether that dollar is
+    *productive*. To isolate the productivity channel specifically, "both"/"dC"/"dI"
+    are reported *net of* their own theta_G=0 baseline, so they are exactly 0 at
+    theta_G=0 by construction and show the *incremental* effect of productivity
+    beyond that baseline as theta_G rises.
+
     Three cases are returned:
       direct  -- output effect holding private K,N fixed (dY/dIG = theta_G)
       k_adj   -- private capital adjusts, labor fixed
-      both    -- both private capital and labor adjust (full GE)
+      both    -- both private capital and labor adjust (full GE), net of the
+                 theta_G=0 (pure resource-reallocation) baseline
     """
     ss0 = steady_state(theta_N, delta, r, A, 0.0, s_IG, s_GT, distortionary, theta_L)
     theta_K = ss0.theta_K
@@ -494,18 +509,27 @@ def public_investment_long_run(theta_N: float, delta: float, r: float, A: float,
     direct = theta_G_grid.copy()
     k_adj = theta_G_grid / (1.0 - theta_K)
 
-    both = np.zeros_like(theta_G_grid)
-    dC = np.zeros_like(theta_G_grid)
-    dI = np.zeros_like(theta_G_grid)
-    for idx, theta_G in enumerate(theta_G_grid):
+    def _marginal(theta_G):
         h = 1e-4
         m1 = _public_capital_output(theta_N, theta_K, delta, r, A, s_GT, theta_L, distortionary,
                                      theta_G, s_IG - h)
         m2 = _public_capital_output(theta_N, theta_K, delta, r, A, s_GT, theta_L, distortionary,
                                      theta_G, s_IG + h)
-        both[idx] = (m2["Y"] - m1["Y"]) / (m2["IG"] - m1["IG"])
-        dC[idx] = (m2["C"] - m1["C"]) / (m2["IG"] - m1["IG"])
-        dI[idx] = (m2["I"] - m1["I"]) / (m2["IG"] - m1["IG"])
+        dY = (m2["Y"] - m1["Y"]) / (m2["IG"] - m1["IG"])
+        dC = (m2["C"] - m1["C"]) / (m2["IG"] - m1["IG"])
+        dI = (m2["I"] - m1["I"]) / (m2["IG"] - m1["IG"])
+        return dY, dC, dI
+
+    baseline_Y, baseline_C, baseline_I = _marginal(0.0)
+
+    both = np.zeros_like(theta_G_grid)
+    dC = np.zeros_like(theta_G_grid)
+    dI = np.zeros_like(theta_G_grid)
+    for idx, theta_G in enumerate(theta_G_grid):
+        dY_raw, dC_raw, dI_raw = _marginal(theta_G)
+        both[idx] = dY_raw - baseline_Y
+        dC[idx] = dC_raw - baseline_C
+        dI[idx] = dI_raw - baseline_I
 
     return dict(theta_G=theta_G_grid, direct=direct, k_adj=k_adj, both=both, dC=dC, dI=dI)
 
