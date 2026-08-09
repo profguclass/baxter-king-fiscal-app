@@ -10,11 +10,13 @@ A = 1.0
 N_target = 0.20
 s_G = 0.20
 
-# --- Baseline (theta_G=0, basic G only) steady state -----------------------
-theta_L = calibrate_theta_L(theta_N, delta, r, A, 0.0, s_G, 0.0, 0.0, False, N_target)
+# --- Baseline (theta_G=0, all spending as resource-using "public investment"
+#     with zero productivity -- economically identical to the old "basic
+#     purchases" category, since there's no separate G_B term anymore) ------
+theta_L = calibrate_theta_L(theta_N, delta, r, A, 0.0, s_G, 0.0, False, N_target)
 print(f"Calibrated theta_L = {theta_L:.4f}")
 
-ss = steady_state(theta_N, delta, r, A, 0.0, s_G, 0.0, 0.0, False, theta_L)
+ss = steady_state(theta_N, delta, r, A, 0.0, s_G, 0.0, False, theta_L)
 print("Baseline steady state:")
 for k, v in ss.as_dict().items():
     print(f"  {k:10s} = {v}")
@@ -24,21 +26,21 @@ print()
 dG_small = 0.001
 
 # --- Permanent, lump-sum: expect long-run multiplier ~1.13-1.16 ------------
-exp_perm = run_experiment(theta_N, delta, r, A, 0.0, s_G, s_G + dG_small, 1.0, 0.0, 0.0,
+exp_perm = run_experiment(theta_N, delta, r, A, 0.0, s_G, s_G + dG_small, 1.0, 0.0,
                            N_target, financing="lump_sum", permanent=True)
 print(f"[Permanent, lump-sum] long-run multiplier dY/dG = {exp_perm.multiplier_long_run:.3f}  (paper: ~1.16)")
 print(f"[Permanent, lump-sum] impact multiplier (t=0)     = {exp_perm.multiplier_impact:.3f}  (paper: ~0.86)")
 print()
 
 # --- Temporary 4-year war, lump-sum: expect impact multiplier ~0.5-0.6 -----
-exp_temp4 = run_experiment(theta_N, delta, r, A, 0.0, s_G, s_G + dG_small, 1.0, 0.0, 0.0,
+exp_temp4 = run_experiment(theta_N, delta, r, A, 0.0, s_G, s_G + dG_small, 1.0, 0.0,
                             N_target, financing="lump_sum",
                             permanent=False, duration_years=4)
 print(f"[Temporary 4yr, lump-sum] impact multiplier (t=0) = {exp_temp4.multiplier_impact:.3f}  (paper Table 3: ~0.56)")
 print()
 
 # --- Income tax (GRH-style): expect NEGATIVE long-run multiplier ~ -1.10 --
-exp_grh = run_experiment(theta_N, delta, r, A, 0.0, s_G, s_G + dG_small, 1.0, 0.0, 0.0,
+exp_grh = run_experiment(theta_N, delta, r, A, 0.0, s_G, s_G + dG_small, 1.0, 0.0,
                           N_target, financing="income_tax", permanent=True)
 print(f"[Permanent, income tax] long-run multiplier dY/dG = {exp_grh.multiplier_long_run:.3f}  (paper: -1.10)")
 assert exp_grh.multiplier_long_run < 0, "income-tax financing should give a negative long-run multiplier"
@@ -55,7 +57,7 @@ assert np.all(np.diff(tbl["both"]) > 0), "multiplier should be increasing in the
 print()
 
 # --- theta_G>0 dynamic path must run without error and Kᴳ must build up ----
-exp_pub = run_experiment(theta_N, delta, r, A, 0.05, s_G, s_G + 0.05, 0.7, 0.25, 0.05,
+exp_pub = run_experiment(theta_N, delta, r, A, 0.05, s_G, s_G + 0.05, 0.3, 0.7,
                           N_target, financing="lump_sum", permanent=True)
 assert exp_pub.path.KG[1] > exp_pub.path.KG[0], "public capital should build up gradually, not jump"
 print(f"[theta_G=0.05, dynamic] long-run multiplier = {exp_pub.multiplier_long_run:.3f}; "

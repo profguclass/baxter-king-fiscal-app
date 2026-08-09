@@ -11,27 +11,29 @@ The model:
                      (theta_K = 1 - theta_N; KG = public capital stock)
   Capital accum.:    K_{t+1}  = (1-delta) K_t  + I_t
                      KG_{t+1} = (1-delta) KG_t + IG_t
-  Resource constr.:  Y_t = C_t + I_t + G_B,t + IG_t       (transfers TR are not resource-using)
-  Government budget: tau_t * Y_t = G_B,t + IG_t + TR_t,   tau_t = (G_B,t+IG_t+TR_t)/Y_t
-                      -- i.e. the tax rate always equals total government purchases as a
+  Resource constr.:  Y_t = C_t + I_t + IG_t                (transfers G_T are not resource-using;
+                                                              there is no separate "basic purchases"
+                                                              term, since the utility function does
+                                                              not value government consumption at all)
+  Government budget: tau_t * Y_t = IG_t + G_T,t,   tau_t = (IG_t+G_T,t)/Y_t
+                      -- i.e. the tax rate always equals total government spending as a
                       share of output, under BOTH financing rules below.
 
 Two financing rules (both use the SAME tax rate formula above; they differ only in
 whether that tax distorts the household's labor/capital margin):
 
-  * "lump_sum"      -- the tax is levied/rebated lump-sum: it does NOT enter the
-                        household's labor-leisure or capital-Euler first-order
-                        conditions as a wedge. Purely a resource / wealth effect.
-  * "income_tax"     -- the tax IS a proportional wedge (1-tau) on labor and capital
-                        income in the household's first-order conditions (this is the
-                        paper's original "distortionary"/GRH channel).
+  * "lump_sum"      -- the tax is levied/rebated lump-sum: the household's after-tax
+                        factor income is just w_t*N_t + r_t*K_t (no (1-tau_t) wedge).
+                        Purely a resource / wealth effect.
+  * "income_tax"     -- the household's after-tax factor income is (1-tau_t)*(w_t*N_t +
+                        r_t*K_t): a proportional wedge on labor and capital income (this
+                        is the paper's original "distortionary"/GRH channel).
 
-Government purchases G_t are split into three shares of total output that sum to
-the total government-purchases ratio s_G = G_B/Y + IG/Y + TR/Y:
-  * G_B  -- "basic" purchases, pure resource cost, no productivity effect.
+Total government spending G_t is split into two shares of output that sum to the
+total government-spending ratio s_G = IG/Y + G_T/Y:
   * IG   -- public investment, accumulates into a public-capital stock KG that
             raises the productivity of private capital and labor (theta_G).
-  * TR   -- lump-sum transfers back to households; resource-neutral in aggregate.
+  * G_T  -- lump-sum transfers back to households; resource-neutral in aggregate.
 
 Capital (K and KG) accumulates according to the laws of motion above; the
 equilibrium has predetermined capital and a forward-looking jump variable
@@ -60,11 +62,11 @@ Financing = Literal["lump_sum", "income_tax"]
 def _supply_side_impl(theta_N: float, delta: float, r: float, A: float, tau: float,
                        theta_G: float, s_IG: float, distortionary: bool) -> dict:
     theta_K = 1.0 - theta_N
-    wedge = (1.0 - tau) if distortionary else 1.0
-    if wedge <= 0:
-        raise ValueError("Invalid parameters: tax wedge (1-tau) must be positive under Income Tax financing.")
+    tax_factor = (1.0 - tau) if distortionary else 1.0
+    if tax_factor <= 0:
+        raise ValueError("Invalid parameters: (1-tau) must be positive under Income Tax financing.")
 
-    kappa = ((wedge * theta_K * A) / (r + delta)) ** (1.0 / (1.0 - theta_K))
+    kappa = ((tax_factor * theta_K * A) / (r + delta)) ** (1.0 / (1.0 - theta_K))
     alpha = A * kappa ** theta_K  # will be rescaled by KG^theta_G below
     KG = 0.0
     if theta_G > 0 and s_IG > 0:
@@ -76,7 +78,7 @@ def _supply_side_impl(theta_N: float, delta: float, r: float, A: float, tau: flo
         alpha_guess = alpha_ppN
         for _ in range(200):
             KG_ppN = s_IG * alpha_guess / delta  # KG per unit of N
-            base = (wedge * theta_K * A * KG_ppN ** theta_G) / (r + delta)
+            base = (tax_factor * theta_K * A * KG_ppN ** theta_G) / (r + delta)
             kappa = base ** (1.0 / (1.0 - theta_K))
             alpha_new = A * kappa ** theta_K * KG_ppN ** theta_G
             if abs(alpha_new - alpha_guess) < 1e-12:
@@ -86,9 +88,9 @@ def _supply_side_impl(theta_N: float, delta: float, r: float, A: float, tau: flo
         alpha = alpha_guess
         KG = s_IG * alpha / delta  # KG per unit of N
     w = theta_N * alpha
-    q = wedge * theta_K * alpha / kappa
+    q = tax_factor * theta_K * alpha / kappa
     s_I = delta * kappa / alpha
-    return dict(theta_K=theta_K, kappa=kappa, alpha=alpha, w=w, q=q, s_I=s_I, KG=KG, wedge=wedge)
+    return dict(theta_K=theta_K, kappa=kappa, alpha=alpha, w=w, q=q, s_I=s_I, KG=KG, tax_factor=tax_factor)
 
 
 # --------------------------------------------------------------------------
@@ -105,10 +107,9 @@ class SteadyState:
     A: float
     tau: float
     theta_L: float
-    s_G: float       # total government purchases share (G_B+IG+TR)/Y
-    s_GB: float
+    s_G: float       # total government spending share (IG+G_T)/Y
     s_IG: float
-    s_TR: float
+    s_GT: float
     distortionary: bool
     kappa: float
     alpha: float
@@ -123,49 +124,46 @@ class SteadyState:
     KG: float
     C: float
     I: float
-    G: float          # total government purchases G_B+IG+TR
-    GB: float
+    G: float          # total government spending IG+G_T
     IG: float
-    TR: float
+    GT: float
 
     def as_dict(self) -> dict:
         return self.__dict__.copy()
 
 
 def calibrate_theta_L(theta_N: float, delta: float, r: float, A: float, theta_G: float,
-                       s_GB: float, s_IG: float, s_TR: float, distortionary: bool,
+                       s_IG: float, s_GT: float, distortionary: bool,
                        N_target: float) -> float:
     """Choose theta_L (weight on leisure) so that steady-state labor input equals
     N_target, given the other parameters (Table 1 calibration strategy)."""
-    tau = s_GB + s_IG + s_TR
+    tau = s_IG + s_GT
     supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, distortionary)
-    s_GR = s_GB + s_IG
-    s_C = 1.0 - supply["s_I"] - s_GR
+    s_C = 1.0 - supply["s_I"] - s_IG
     if s_C <= 0:
         raise ValueError("Government share too large: steady-state consumption share <= 0.")
     N = N_target
-    theta_L = supply["wedge"] * theta_N * (1.0 - N) / (s_C * N)
+    theta_L = supply["tax_factor"] * theta_N * (1.0 - N) / (s_C * N)
     if theta_L <= 0:
         raise ValueError("Implied theta_L <= 0; adjust N_target or the tax/spending settings.")
     return theta_L
 
 
 def steady_state(theta_N: float, delta: float, r: float, A: float, theta_G: float,
-                  s_GB: float, s_IG: float, s_TR: float, distortionary: bool,
+                  s_IG: float, s_GT: float, distortionary: bool,
                   theta_L: float) -> SteadyState:
-    """Exact steady state of the model for given parameters and government-purchases
-    composition (s_GB, s_IG, s_TR).  tau = s_GB+s_IG+s_TR always."""
-    tau = s_GB + s_IG + s_TR
+    """Exact steady state of the model for given parameters and government-spending
+    composition (s_IG, s_GT).  tau = s_IG+s_GT always."""
+    tau = s_IG + s_GT
     s_G = tau
     supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, distortionary)
     s_I = supply["s_I"]
-    s_GR = s_GB + s_IG
-    s_C = 1.0 - s_I - s_GR
+    s_C = 1.0 - s_I - s_IG
     if s_C <= 0:
         raise ValueError("Government share too large: steady-state consumption share <= 0.")
 
-    wedge = supply["wedge"]
-    N = wedge * theta_N / (theta_L * s_C + wedge * theta_N)
+    tax_factor = supply["tax_factor"]
+    N = tax_factor * theta_N / (theta_L * s_C + tax_factor * theta_N)
     if not (0 < N < 1):
         raise ValueError(f"Implied labor supply N={N:.3f} is outside (0,1).")
     L = 1.0 - N
@@ -175,27 +173,26 @@ def steady_state(theta_N: float, delta: float, r: float, A: float, theta_G: floa
     KG = supply["KG"] * N
     C = s_C * Y
     I = s_I * Y
-    GB = s_GB * Y
     IG = s_IG * Y
-    TR = s_TR * Y
-    G = GB + IG + TR
+    GT = s_GT * Y
+    G = IG + GT
 
     return SteadyState(
         theta_N=theta_N, theta_K=supply["theta_K"], theta_G=theta_G, delta=delta, r=r, A=A,
-        tau=tau, theta_L=theta_L, s_G=s_G, s_GB=s_GB, s_IG=s_IG, s_TR=s_TR,
+        tau=tau, theta_L=theta_L, s_G=s_G, s_IG=s_IG, s_GT=s_GT,
         distortionary=distortionary, kappa=supply["kappa"], alpha=supply["alpha"],
         w=supply["w"], q=supply["q"], s_I=s_I, s_C=s_C, N=N, L=L, Y=Y, K=K, KG=KG, C=C, I=I,
-        G=G, GB=GB, IG=IG, TR=TR,
+        G=G, IG=IG, GT=GT,
     )
 
 
 def steady_state_for_policy(theta_N: float, delta: float, r: float, A: float, theta_G: float,
-                             s_G_total: float, f_GB: float, f_IG: float, f_TR: float,
+                             s_G_total: float, f_IG: float, f_GT: float,
                              theta_L: float, distortionary: bool) -> SteadyState:
-    """Steady state for a given total government-purchases ratio s_G_total, split
-    into fixed composition fractions f_GB+f_IG+f_TR=1 of that total."""
-    s_GB, s_IG, s_TR = s_G_total * f_GB, s_G_total * f_IG, s_G_total * f_TR
-    return steady_state(theta_N, delta, r, A, theta_G, s_GB, s_IG, s_TR, distortionary, theta_L)
+    """Steady state for a given total government-spending ratio s_G_total, split
+    into fixed composition fractions f_IG+f_GT=1 of that total."""
+    s_IG, s_GT = s_G_total * f_IG, s_G_total * f_GT
+    return steady_state(theta_N, delta, r, A, theta_G, s_IG, s_GT, distortionary, theta_L)
 
 
 # --------------------------------------------------------------------------
@@ -213,8 +210,7 @@ def _log_linear_coeffs(ss: SteadyState) -> dict:
     theta_N, theta_K, theta_G = ss.theta_N, ss.theta_K, ss.theta_G
     L = ss.L
     tau = ss.tau
-    s_C, s_I, s_GB, s_IG = ss.s_C, ss.s_I, ss.s_GB, ss.s_IG
-    s_GR = s_GB + s_IG
+    s_C, s_I, s_IG = ss.s_C, ss.s_I, ss.s_IG
     delta, r = ss.delta, ss.r
 
     D = 1.0 - theta_N * L
@@ -250,10 +246,10 @@ def _log_linear_coeffs(ss: SteadyState) -> dict:
 
     Phi_kk = (1.0 - delta) + delta * y_k / s_I
     Phi_kc = delta * (y_c - s_C) / s_I
-    Phi_kg = delta * (y_g - s_GR) / s_I
+    Phi_kg = delta * (y_g - s_IG) / s_I
     Phi_k_kg = delta * y_kg / s_I
 
-    return dict(y_k=y_k, y_kg=y_kg, y_c=y_c, y_g=y_g, s_GR=s_GR,
+    return dict(y_k=y_k, y_kg=y_kg, y_c=y_c, y_g=y_g, s_GR=s_IG,
                 coef_c=coef_c, coef_k=coef_k, coef_g=coef_g, coef_kg=coef_kg,
                 Phi_kk=Phi_kk, Phi_kc=Phi_kc, Phi_kg=Phi_kg, Phi_k_kg=Phi_k_kg)
 
@@ -353,7 +349,7 @@ class TransitionPath:
 def simulate_transition(ss_ref: SteadyState, g_path: np.ndarray,
                          k0: float = 0.0, kg0: float = 0.0, T_sim: int = 300) -> TransitionPath:
     """Simulate the perfect-foresight transition path in log-deviations from steady
-    state `ss_ref`, given an exogenous path of government-purchases log-deviations
+    state `ss_ref`, given an exogenous path of government-spending log-deviations
     `g_path` (padded with zeros afterwards) and initial capital log-deviations k0/kg0."""
     coeffs = _log_linear_coeffs(ss_ref)
     y_k, y_kg, y_c, y_g, s_GR = coeffs["y_k"], coeffs["y_kg"], coeffs["y_c"], coeffs["y_g"], coeffs["s_GR"]
@@ -412,20 +408,20 @@ class PolicyExperiment:
 
 
 def run_experiment(theta_N: float, delta: float, r: float, A: float, theta_G: float,
-                    s_G_old: float, s_G_new: float, f_GB: float, f_IG: float, f_TR: float,
+                    s_G_old: float, s_G_new: float, f_IG: float, f_GT: float,
                     N_target: float, financing: Financing,
                     permanent: bool, duration_years: int = 4, T_sim: int = 300) -> PolicyExperiment:
     """Full comparative-steady-state + transition-path experiment for a change in total
-    government purchases from s_G_old to s_G_new, holding the composition fractions
-    (f_GB, f_IG, f_TR) fixed."""
+    government spending from s_G_old to s_G_new, holding the composition fractions
+    (f_IG, f_GT) fixed."""
     distortionary = financing == "income_tax"
-    s_GB_old, s_IG_old, s_TR_old = s_G_old * f_GB, s_G_old * f_IG, s_G_old * f_TR
-    theta_L = calibrate_theta_L(theta_N, delta, r, A, theta_G, s_GB_old, s_IG_old, s_TR_old,
+    s_IG_old, s_GT_old = s_G_old * f_IG, s_G_old * f_GT
+    theta_L = calibrate_theta_L(theta_N, delta, r, A, theta_G, s_IG_old, s_GT_old,
                                  distortionary, N_target)
 
-    ss_old = steady_state_for_policy(theta_N, delta, r, A, theta_G, s_G_old, f_GB, f_IG, f_TR,
+    ss_old = steady_state_for_policy(theta_N, delta, r, A, theta_G, s_G_old, f_IG, f_GT,
                                        theta_L, distortionary)
-    ss_new = steady_state_for_policy(theta_N, delta, r, A, theta_G, s_G_new, f_GB, f_IG, f_TR,
+    ss_new = steady_state_for_policy(theta_N, delta, r, A, theta_G, s_G_new, f_IG, f_GT,
                                        theta_L, distortionary)
 
     dY = ss_new.Y - ss_old.Y
@@ -480,19 +476,19 @@ def run_experiment(theta_N: float, delta: float, r: float, A: float, theta_G: fl
 # --------------------------------------------------------------------------
 
 def public_investment_long_run(theta_N: float, delta: float, r: float, A: float,
-                                 s_GB: float, theta_L: float, distortionary: bool,
+                                 s_GT: float, theta_L: float, distortionary: bool,
                                  theta_G_grid: np.ndarray, s_IG: float = 0.05) -> "dict[str, np.ndarray]":
     """Replicates Table 4 of Baxter & King: long-run output/consumption/investment
     effects of a marginal increase in productivity-augmenting public investment IG,
     for a grid of theta_G (public-capital productivity parameter), holding the
-    public-investment share s_IG = IG/Y fixed.
+    public-investment share s_IG = IG/Y fixed and transfers s_GT fixed.
 
     Three cases are returned:
       direct  -- output effect holding private K,N fixed (dY/dIG = theta_G)
       k_adj   -- private capital adjusts, labor fixed
       both    -- both private capital and labor adjust (full GE)
     """
-    ss0 = steady_state(theta_N, delta, r, A, 0.0, s_GB, s_IG, 0.0, distortionary, theta_L)
+    ss0 = steady_state(theta_N, delta, r, A, 0.0, s_IG, s_GT, distortionary, theta_L)
     theta_K = ss0.theta_K
 
     direct = theta_G_grid.copy()
@@ -503,9 +499,9 @@ def public_investment_long_run(theta_N: float, delta: float, r: float, A: float,
     dI = np.zeros_like(theta_G_grid)
     for idx, theta_G in enumerate(theta_G_grid):
         h = 1e-4
-        m1 = _public_capital_output(theta_N, theta_K, delta, r, A, s_GB, theta_L, distortionary,
+        m1 = _public_capital_output(theta_N, theta_K, delta, r, A, s_GT, theta_L, distortionary,
                                      theta_G, s_IG - h)
-        m2 = _public_capital_output(theta_N, theta_K, delta, r, A, s_GB, theta_L, distortionary,
+        m2 = _public_capital_output(theta_N, theta_K, delta, r, A, s_GT, theta_L, distortionary,
                                      theta_G, s_IG + h)
         both[idx] = (m2["Y"] - m1["Y"]) / (m2["IG"] - m1["IG"])
         dC[idx] = (m2["C"] - m1["C"]) / (m2["IG"] - m1["IG"])
@@ -514,18 +510,18 @@ def public_investment_long_run(theta_N: float, delta: float, r: float, A: float,
     return dict(theta_G=theta_G_grid, direct=direct, k_adj=k_adj, both=both, dC=dC, dI=dI)
 
 
-def _public_capital_output(theta_N, theta_K, delta, r, A, s_GB, theta_L, distortionary, theta_G, s_IG):
+def _public_capital_output(theta_N, theta_K, delta, r, A, s_GT, theta_L, distortionary, theta_G, s_IG):
     """Steady state of the model with productive public capital, at a given (theta_G,
     s_IG), used for the numerical-derivative Table 4 / Figure 5 computation. tau is
-    recomputed as s_GB+s_IG (no transfers in this cross-section)."""
-    tau = s_GB + s_IG
+    recomputed as s_IG+s_GT."""
+    tau = s_IG + s_GT
     supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, distortionary)
     s_I = supply["s_I"]
-    s_C = 1.0 - s_I - s_GB - s_IG
+    s_C = 1.0 - s_I - s_IG
     if s_C <= 0:
         s_C = 1e-6
-    wedge = supply["wedge"]
-    N = wedge * theta_N / (theta_L * s_C + wedge * theta_N)
+    tax_factor = supply["tax_factor"]
+    N = tax_factor * theta_N / (theta_L * s_C + tax_factor * theta_N)
     Y = supply["alpha"] * N
     K = supply["kappa"] * N
     KG = supply["KG"] * N

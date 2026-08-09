@@ -21,6 +21,7 @@ from fiscal_model import (
     calibrate_theta_L,
     public_investment_long_run,
     run_experiment,
+    steady_state_for_policy,
 )
 
 st.set_page_config(page_title="Fiscal Policy in General Equilibrium",
@@ -81,12 +82,12 @@ st.sidebar.subheader("4. Real interest rate")
 r_pct = st.sidebar.slider("Steady-state real interest rate, r (%/yr)", 1.0, 12.0, 6.5, 0.25, key="r_pct")
 
 # 5. Baseline fiscal policy: size and change ------------------------
-st.sidebar.subheader("5. Baseline government purchases")
-s_G_old_pct = st.sidebar.slider("Baseline total government purchases, G/Y (%)", 5.0, 40.0, 20.0, 1.0, key="s_G_old_pct")
+st.sidebar.subheader("5. Baseline government spending")
+s_G_old_pct = st.sidebar.slider("Baseline total government spending, G/Y (%)", 5.0, 40.0, 20.0, 1.0, key="s_G_old_pct")
 st.sidebar.caption("Tax rate τ = G/Y always, under both financing rules above (item 2).")
 
 delta_s_G_pct = st.sidebar.slider(
-    "Change in government purchases, ΔG/Y (percentage points)", -10.0, 15.0, 0.0, 0.5,
+    "Change in government spending, ΔG/Y (percentage points)", -10.0, 15.0, 0.0, 0.5,
     help="Expressed relative to the baseline G/Y set above. Defaults to 0 (no policy "
          "change yet) -- move this slider to run an experiment. Composition shares "
          "(item 6) stay fixed.",
@@ -99,16 +100,16 @@ st.sidebar.caption(f"New G/Y = {s_G_old_pct:.1f}% + {delta_s_G_pct:+.1f} = **{s_
 
 # 6. Composition of G ------------------------------------------------------
 st.sidebar.subheader("6. Composition of G")
+st.sidebar.caption("Government spending has no separate \"basic purchases\" term -- the "
+                    "utility function never values government consumption directly -- so "
+                    "it splits into just two pieces: public investment Iᴳ and transfers G_T.")
 f_IG_pct = st.sidebar.slider("Public investment share of G, Iᴳ/G (%)", 0.0, 100.0, 25.0, 5.0, key="f_IG_pct")
-f_TR_pct = st.sidebar.slider("Transfers share of G, TR/G (%)", 0.0, 100.0 - f_IG_pct, 0.0, 5.0, key="f_TR_pct")
-f_GB_pct = 100.0 - f_IG_pct - f_TR_pct
-st.sidebar.caption(f"Basic purchases G_B/G = **{f_GB_pct:.0f}%** is the residual determined "
-                    f"by the two sliders above (100% − Iᴳ/G − TR/G).")
+f_GT_pct = 100.0 - f_IG_pct
+st.sidebar.caption(f"⇒ Transfers G_T/G = **{f_GT_pct:.0f}%** is the residual (100% − Iᴳ/G).")
 
 fig_comp = go.Figure()
-for name, val, color in [("G_B", f_GB_pct, "#6b7280"),
-                          ("Iᴳ", f_IG_pct, "#16a34a"),
-                          ("TR", f_TR_pct, "#7c3aed")]:
+for name, val, color in [("Iᴳ", f_IG_pct, "#16a34a"),
+                          ("G_T", f_GT_pct, "#7c3aed")]:
     fig_comp.add_trace(go.Bar(y=["G/Y"], x=[val], name=name, orientation="h",
                                marker_color=color,
                                text=f"{name} {val:.0f}%" if val > 3 else "",
@@ -139,14 +140,14 @@ theta_G_v = theta_G
 s_G_old_v = s_G_old_pct / 100.0
 s_G_new_v = s_G_new_pct / 100.0
 N_target_v = N_target_pct / 100.0
-f_GB_v, f_IG_v, f_TR_v = f_GB_pct / 100.0, f_IG_pct / 100.0, f_TR_pct / 100.0
+f_IG_v, f_GT_v = f_IG_pct / 100.0, f_GT_pct / 100.0
 
 error = None
 experiment = None
 try:
     experiment = run_experiment(
         theta_N=theta_N_v, delta=delta_v, r=r_v, A=1.0, theta_G=theta_G_v,
-        s_G_old=s_G_old_v, s_G_new=s_G_new_v, f_GB=f_GB_v, f_IG=f_IG_v, f_TR=f_TR_v,
+        s_G_old=s_G_old_v, s_G_new=s_G_new_v, f_IG=f_IG_v, f_GT=f_GT_v,
         N_target=N_target_v, financing=financing,
         permanent=permanent, duration_years=duration_years, T_sim=200,
     )
@@ -165,174 +166,207 @@ if error:
 ss_old, ss_new, path = experiment.ss_old, experiment.ss_new, experiment.path
 
 # --------------------------------------------------------------------------
-# Headline numbers
+# Fixed benchmark steady state (paper's Table 1 calibration): a genuinely
+# fixed reference point, independent of every sidebar control, so that
+# panel 1 below always shows *some* difference when composition, financing,
+# θ_G, or r are moved -- not just when ΔG/Y is.
 # --------------------------------------------------------------------------
 
-if abs(delta_s_G_pct) < 1e-9:
-    st.info("ΔG/Y is set to 0 — the baseline and new policy are identical, so there's no "
-            "experiment to show yet. Move the **ΔG/Y** slider away from 0 in the sidebar.")
-    st.stop()
+BENCH_theta_N, BENCH_delta, BENCH_r = 0.58, 0.10, 0.065
+BENCH_theta_G, BENCH_s_G, BENCH_N_target = 0.0, 0.20, 0.20
+BENCH_f_IG, BENCH_f_GT = 0.0, 1.0  # benchmark: no public investment, all spending is transfers
+BENCH_distortionary = False
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Long-run output multiplier ΔY/ΔG",
-          f"{experiment.multiplier_long_run:+.2f}")
-c2.metric("Impact (year-0) output multiplier",
-          f"{experiment.multiplier_impact:+.2f}")
-c3.metric("Steady-state hours worked N",
-          f"{ss_old.N*100:.1f}% → {ss_new.N*100:.1f}%")
-c4.metric("Tax rate τ = G/Y", f"{ss_old.tau*100:.1f}% → {ss_new.tau*100:.1f}%")
-
-if experiment.multiplier_long_run > 1:
-    st.success(
-        f"**A one-dollar permanent increase in government purchases raises long-run "
-        f"output by ≈ ${experiment.multiplier_long_run:.2f}.** This exceed-1 "
-        f"multiplier is the paper's central, surprising result: it comes from labor "
-        f"supply rising (negative wealth effect), and — if θ_G>0 — public investment "
-        f"directly raising the productivity of private capital and labor."
-    )
-elif experiment.multiplier_long_run < 0:
-    st.warning(
-        f"**Output *falls* by ≈ ${-experiment.multiplier_long_run:.2f} for every dollar "
-        f"of new spending.** Under Income Tax financing the tax wedge on labor and "
-        f"capital income depresses work effort and capital formation by more than the "
-        f"direct resource cost of the spending itself."
-    )
+benchmark_error = None
+ss_benchmark = None
+try:
+    theta_L_bench = calibrate_theta_L(BENCH_theta_N, BENCH_delta, BENCH_r, 1.0, BENCH_theta_G,
+                                       BENCH_s_G * BENCH_f_IG, BENCH_s_G * BENCH_f_GT,
+                                       BENCH_distortionary, BENCH_N_target)
+    ss_benchmark = steady_state_for_policy(BENCH_theta_N, BENCH_delta, BENCH_r, 1.0, BENCH_theta_G,
+                                            BENCH_s_G, BENCH_f_IG, BENCH_f_GT,
+                                            theta_L_bench, BENCH_distortionary)
+except Exception as exc:  # noqa: BLE001
+    benchmark_error = str(exc)
 
 # --------------------------------------------------------------------------
-# 1. Steady-state / equilibrium comparison
+# 1. Steady-state / equilibrium comparison: fixed benchmark vs. current settings
 # --------------------------------------------------------------------------
 
 st.header("1. Comparative steady states")
 st.write("Exact, closed-form solution of the model's long-run (“great ratios”) "
-         "equilibrium, before vs. after the policy change.")
-left_label, right_label = "Original steady state", "New steady state"
+         "equilibrium: the paper's **fixed benchmark calibration** vs. **whatever the "
+         "sidebar is currently set to** (including the ΔG/Y experiment, item 5). Moving "
+         "*any* sidebar control -- duration aside -- changes the right-hand column.")
 
-ss_table = pd.DataFrame({
-    "Variable": ["Output Y", "Consumption C", "Investment I", "Private capital K",
-                 "Public capital Kᴳ", "Government purchases G (total)",
-                 "  Basic G_B", "  Public investment Iᴳ", "  Transfers TR",
-                 "Real wage w", "Tax rate τ (%)"],
-    left_label: [ss_old.Y, ss_old.C, ss_old.I, ss_old.K, ss_old.KG, ss_old.G,
-                 ss_old.GB, ss_old.IG, ss_old.TR, ss_old.w, ss_old.tau * 100],
-    right_label: [ss_new.Y, ss_new.C, ss_new.I, ss_new.K, ss_new.KG, ss_new.G,
-                  ss_new.GB, ss_new.IG, ss_new.TR, ss_new.w, ss_new.tau * 100],
-})
-ss_table["% change"] = 100 * (ss_table[right_label] / ss_table[left_label].replace(0, np.nan) - 1)
+if benchmark_error:
+    st.error(f"Could not compute the benchmark steady state: {benchmark_error}")
+else:
+    left_label, right_label = "Paper's benchmark calibration", "Current settings"
 
-st.dataframe(
-    ss_table,
-    hide_index=True,
-    use_container_width=True,
-    column_config={
-        left_label: st.column_config.NumberColumn(format="%.6f"),
-        right_label: st.column_config.NumberColumn(format="%.6f"),
-        "% change": st.column_config.NumberColumn(format="%+.2f%%"),
-    },
-)
+    ss_table = pd.DataFrame({
+        "Variable": ["Output Y", "Consumption C", "Investment I", "Private capital K",
+                     "Public capital Kᴳ", "Government spending G (total)",
+                     "  Public investment Iᴳ", "  Transfers G_T",
+                     "Real wage w", "Tax rate τ (%)"],
+        left_label: [ss_benchmark.Y, ss_benchmark.C, ss_benchmark.I, ss_benchmark.K, ss_benchmark.KG,
+                     ss_benchmark.G, ss_benchmark.IG, ss_benchmark.GT, ss_benchmark.w, ss_benchmark.tau * 100],
+        right_label: [ss_new.Y, ss_new.C, ss_new.I, ss_new.K, ss_new.KG, ss_new.G,
+                      ss_new.IG, ss_new.GT, ss_new.w, ss_new.tau * 100],
+    })
+    ss_table["% change"] = 100 * (ss_table[right_label] / ss_table[left_label].replace(0, np.nan) - 1)
 
-bar_vars = ["Output Y", "Consumption C", "Investment I", "Private capital K", "Public capital Kᴳ"]
-pct_change = ss_table.set_index("Variable").loc[bar_vars, "% change"]
-fig_bar = go.Figure(go.Bar(x=bar_vars, y=pct_change.values,
-                            marker_color=["#2563eb" if v >= 0 else "#dc2626" for v in pct_change.values],
-                            text=[f"{v:+.2f}%" for v in pct_change.values], textposition="outside"))
-fig_bar.update_layout(title=f"% change from the {left_label.lower()}",
-                       yaxis_title="% change", height=380, margin=dict(t=50, b=20))
-st.plotly_chart(fig_bar, use_container_width=True)
+    st.dataframe(
+        ss_table,
+        hide_index=True,
+        use_container_width=True,
+        column_config={
+            left_label: st.column_config.NumberColumn(format="%.6f"),
+            right_label: st.column_config.NumberColumn(format="%.6f"),
+            "% change": st.column_config.NumberColumn(format="%+.2f%%"),
+        },
+    )
 
-# --------------------------------------------------------------------------
-# 2. Transition dynamics
-# --------------------------------------------------------------------------
-
-st.header("2. Transition dynamics")
-st.write("Perfect-foresight transition path (log-linearized around the relevant steady "
-         "state, solved exactly via eigen-decomposition -- no simulation noise). "
-         "All series are % deviations from the *original* steady state, matching "
-         "Figures 2-4 of the paper.")
-
-years_to_show = st.slider("Years to display", 5, 100, 25, 5, key="years_to_show")
-yrs = path.years[:years_to_show]
-
-def line_fig(title, series_specs, yaxis_title):
-    fig = go.Figure()
-    for name, arr, color in series_specs:
-        fig.add_trace(go.Scatter(x=yrs, y=arr[:years_to_show], mode="lines+markers",
-                                  name=name, line=dict(color=color, width=2), marker=dict(size=4)))
-    fig.add_hline(y=0, line_dash="dot", line_color="gray")
-    fig.update_layout(title=dict(text=title, y=0.98, yanchor="top"),
-                       xaxis_title="Years after the shock", yaxis_title=yaxis_title,
-                       height=420, legend=dict(orientation="h", y=1.18, yanchor="bottom"),
-                       margin=dict(t=110, b=20))
-    return fig
-
-tab1, tab2, tab3 = st.tabs(["Commodity market", "Labor market", "Financial market"])
-
-with tab1:
-    st.plotly_chart(line_fig(
-        "Output, consumption, investment, government purchases",
-        [("Output (Y)", path.Y, "#2563eb"), ("Consumption (C)", path.C, "#16a34a"),
-         ("Investment (I)", path.I, "#f59e0b"), ("Government purchases (G)", path.G, "#6b7280")],
-        "% deviation from original steady state"), use_container_width=True)
-    st.caption("Compare to Baxter & King Figure 2 (permanent) / Figure 3 (temporary war) / "
-               "Figure 4 (GRH). Watch the investment 'accelerator boom' on impact when the "
-               "shock is permanent and lump-sum financed.")
-
-with tab2:
-    st.plotly_chart(line_fig(
-        "Labor input and the real wage",
-        [("Labor input (N)", path.N, "#2563eb"), ("Real wage (w)", path.W, "#dc2626")],
-        "% deviation from original steady state"), use_container_width=True)
-    st.caption("A permanent, lump-sum-financed increase in G is a negative wealth effect: "
-               "households work more and consume less, so labor rises and (with capital "
-               "predetermined) the wage falls on impact.")
-
-with tab3:
-    st.plotly_chart(line_fig(
-        "Private and public capital stocks",
-        [("Private capital (K)", path.K, "#2563eb"), ("Public capital (Kᴳ)", path.KG, "#16a34a")],
-        "% deviation from original steady state"), use_container_width=True)
-    fig_r = go.Figure(go.Scatter(x=yrs, y=path.r_bp[:years_to_show], mode="lines+markers",
-                                  line=dict(color="#7c3aed", width=2)))
-    fig_r.add_hline(y=0, line_dash="dot", line_color="gray")
-    fig_r.update_layout(title="Real interest rate, deviation from steady state",
-                         xaxis_title="Years after the shock", yaxis_title="Basis points",
-                         height=350, margin=dict(t=50, b=20))
-    st.plotly_chart(fig_r, use_container_width=True)
-    st.caption("An unanticipated permanent increase in G should raise short real rates on "
-               "impact -- the model's sharpest, most testable empirical prediction "
-               "(Section III.E of the paper).")
+    bar_vars = ["Output Y", "Consumption C", "Investment I", "Private capital K", "Public capital Kᴳ"]
+    pct_change = ss_table.set_index("Variable").loc[bar_vars, "% change"]
+    fig_bar = go.Figure(go.Bar(x=bar_vars, y=pct_change.values,
+                                marker_color=["#2563eb" if v >= 0 else "#dc2626" for v in pct_change.values],
+                                text=[f"{v:+.2f}%" for v in pct_change.values], textposition="outside"))
+    fig_bar.update_layout(title="% change from the paper's benchmark calibration",
+                           yaxis_title="% change", height=380, margin=dict(t=50, b=20))
+    st.plotly_chart(fig_bar, use_container_width=True)
 
 # --------------------------------------------------------------------------
-# Duration sensitivity (Table 3 style)
+# Headline numbers (the ΔG/Y policy-experiment multipliers specifically)
 # --------------------------------------------------------------------------
 
-with st.expander("\U0001F4CA How much does the *duration* of a temporary shock matter? (Table 3 replication)"):
-    st.write("Holding the financing rule fixed, how does the impact-period output "
-             "multiplier change as a temporary spending increase is made to last longer?")
-    durations = [1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 30]
-    mults = []
-    for T in durations:
-        try:
-            e = run_experiment(theta_N_v, delta_v, r_v, 1.0, theta_G_v, s_G_old_v, s_G_new_v,
-                                f_GB_v, f_IG_v, f_TR_v, N_target_v, financing,
-                                permanent=False, duration_years=T, T_sim=200)
-            mults.append(e.multiplier_impact)
-        except Exception:
-            mults.append(np.nan)
-    perm_e = run_experiment(theta_N_v, delta_v, r_v, 1.0, theta_G_v, s_G_old_v, s_G_new_v,
-                             f_GB_v, f_IG_v, f_TR_v, N_target_v, financing,
-                             permanent=True, T_sim=200)
-    fig_dur = go.Figure()
-    fig_dur.add_trace(go.Scatter(x=durations, y=mults, mode="lines+markers", name="Temporary shock"))
-    fig_dur.add_hline(y=perm_e.multiplier_impact, line_dash="dash", line_color="#dc2626",
-                       annotation_text="Permanent-shock impact multiplier")
-    fig_dur.update_layout(title="Impact multiplier vs. duration of the spending increase",
-                           xaxis_title="Duration (years)", yaxis_title="ΔY/ΔG on impact",
-                           height=380)
-    st.plotly_chart(fig_dur, use_container_width=True)
-    st.caption("Baxter & King's key point (Section IV): more *persistent* shocks produce "
-               "larger short-run multipliers because consumers cannot smooth as easily "
-               "when higher spending is known to last longer -- the opposite of the "
-               "Barro-Hall intuition that temporary shocks should have larger effects.")
+if abs(delta_s_G_pct) < 1e-9:
+    st.info("ΔG/Y is set to 0 — the long-run/impact **multipliers** and the **transition "
+            "dynamics** below need a nonzero spending change to be defined (they isolate "
+            "the effect of *that one* policy lever, holding everything else fixed). Move "
+            "the **ΔG/Y** slider away from 0 in the sidebar to see them. Panel 1 above and "
+            "the Table 4 panel below don't need ΔG/Y and are already showing your current "
+            "settings.")
+else:
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Long-run output multiplier ΔY/ΔG",
+              f"{experiment.multiplier_long_run:+.2f}")
+    c2.metric("Impact (year-0) output multiplier",
+              f"{experiment.multiplier_impact:+.2f}")
+    c3.metric("Steady-state hours worked N",
+              f"{ss_old.N*100:.1f}% → {ss_new.N*100:.1f}%")
+    c4.metric("Tax rate τ = G/Y", f"{ss_old.tau*100:.1f}% → {ss_new.tau*100:.1f}%")
+
+    if experiment.multiplier_long_run > 1:
+        st.success(
+            f"**A one-dollar permanent increase in government spending raises long-run "
+            f"output by ≈ ${experiment.multiplier_long_run:.2f}.** This exceed-1 "
+            f"multiplier is the paper's central, surprising result: it comes from labor "
+            f"supply rising (negative wealth effect), and — if θ_G>0 — public investment "
+            f"directly raising the productivity of private capital and labor."
+        )
+    elif experiment.multiplier_long_run < 0:
+        st.warning(
+            f"**Output *falls* by ≈ ${-experiment.multiplier_long_run:.2f} for every dollar "
+            f"of new spending.** Under Income Tax financing the tax wedge on labor and "
+            f"capital income depresses work effort and capital formation by more than the "
+            f"direct resource cost of the spending itself."
+        )
+
+    # --------------------------------------------------------------------------
+    # 2. Transition dynamics
+    # --------------------------------------------------------------------------
+
+    st.header("2. Transition dynamics")
+    st.write("Perfect-foresight transition path (log-linearized around the relevant steady "
+             "state, solved exactly via eigen-decomposition -- no simulation noise). "
+             "All series are % deviations from the *original* steady state, matching "
+             "Figures 2-4 of the paper.")
+
+    years_to_show = st.slider("Years to display", 5, 100, 25, 5, key="years_to_show")
+    yrs = path.years[:years_to_show]
+
+    def line_fig(title, series_specs, yaxis_title):
+        fig = go.Figure()
+        for name, arr, color in series_specs:
+            fig.add_trace(go.Scatter(x=yrs, y=arr[:years_to_show], mode="lines+markers",
+                                      name=name, line=dict(color=color, width=2), marker=dict(size=4)))
+        fig.add_hline(y=0, line_dash="dot", line_color="gray")
+        fig.update_layout(title=dict(text=title, y=0.98, yanchor="top"),
+                           xaxis_title="Years after the shock", yaxis_title=yaxis_title,
+                           height=420, legend=dict(orientation="h", y=1.18, yanchor="bottom"),
+                           margin=dict(t=110, b=20))
+        return fig
+
+    tab1, tab2, tab3 = st.tabs(["Commodity market", "Labor market", "Financial market"])
+
+    with tab1:
+        st.plotly_chart(line_fig(
+            "Output, consumption, investment, government spending",
+            [("Output (Y)", path.Y, "#2563eb"), ("Consumption (C)", path.C, "#16a34a"),
+             ("Investment (I)", path.I, "#f59e0b"), ("Government spending (G)", path.G, "#6b7280")],
+            "% deviation from original steady state"), use_container_width=True)
+        st.caption("Compare to Baxter & King Figure 2 (permanent) / Figure 3 (temporary war) / "
+                   "Figure 4 (GRH). Watch the investment 'accelerator boom' on impact when the "
+                   "shock is permanent and lump-sum financed.")
+
+    with tab2:
+        st.plotly_chart(line_fig(
+            "Labor input and the real wage",
+            [("Labor input (N)", path.N, "#2563eb"), ("Real wage (w)", path.W, "#dc2626")],
+            "% deviation from original steady state"), use_container_width=True)
+        st.caption("A permanent, lump-sum-financed increase in G is a negative wealth effect: "
+                   "households work more and consume less, so labor rises and (with capital "
+                   "predetermined) the wage falls on impact.")
+
+    with tab3:
+        st.plotly_chart(line_fig(
+            "Private and public capital stocks",
+            [("Private capital (K)", path.K, "#2563eb"), ("Public capital (Kᴳ)", path.KG, "#16a34a")],
+            "% deviation from original steady state"), use_container_width=True)
+        fig_r = go.Figure(go.Scatter(x=yrs, y=path.r_bp[:years_to_show], mode="lines+markers",
+                                      line=dict(color="#7c3aed", width=2)))
+        fig_r.add_hline(y=0, line_dash="dot", line_color="gray")
+        fig_r.update_layout(title="Real interest rate, deviation from steady state",
+                             xaxis_title="Years after the shock", yaxis_title="Basis points",
+                             height=350, margin=dict(t=50, b=20))
+        st.plotly_chart(fig_r, use_container_width=True)
+        st.caption("An unanticipated permanent increase in G should raise short real rates on "
+                   "impact -- the model's sharpest, most testable empirical prediction "
+                   "(Section III.E of the paper).")
+
+    # --------------------------------------------------------------------------
+    # Duration sensitivity (Table 3 style)
+    # --------------------------------------------------------------------------
+
+    with st.expander("\U0001F4CA How much does the *duration* of a temporary shock matter? (Table 3 replication)"):
+        st.write("Holding the financing rule fixed, how does the impact-period output "
+                 "multiplier change as a temporary spending increase is made to last longer?")
+        durations = [1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 30]
+        mults = []
+        for T in durations:
+            try:
+                e = run_experiment(theta_N_v, delta_v, r_v, 1.0, theta_G_v, s_G_old_v, s_G_new_v,
+                                    f_IG_v, f_GT_v, N_target_v, financing,
+                                    permanent=False, duration_years=T, T_sim=200)
+                mults.append(e.multiplier_impact)
+            except Exception:
+                mults.append(np.nan)
+        perm_e = run_experiment(theta_N_v, delta_v, r_v, 1.0, theta_G_v, s_G_old_v, s_G_new_v,
+                                 f_IG_v, f_GT_v, N_target_v, financing,
+                                 permanent=True, T_sim=200)
+        fig_dur = go.Figure()
+        fig_dur.add_trace(go.Scatter(x=durations, y=mults, mode="lines+markers", name="Temporary shock"))
+        fig_dur.add_hline(y=perm_e.multiplier_impact, line_dash="dash", line_color="#dc2626",
+                           annotation_text="Permanent-shock impact multiplier")
+        fig_dur.update_layout(title="Impact multiplier vs. duration of the spending increase",
+                               xaxis_title="Duration (years)", yaxis_title="ΔY/ΔG on impact",
+                               height=380)
+        st.plotly_chart(fig_dur, use_container_width=True)
+        st.caption("Baxter & King's key point (Section IV): more *persistent* shocks produce "
+                   "larger short-run multipliers because consumers cannot smooth as easily "
+                   "when higher spending is known to last longer -- the opposite of the "
+                   "Barro-Hall intuition that temporary shocks should have larger effects.")
 
 # --------------------------------------------------------------------------
 # 3. Table 4 replication: public-capital productivity sensitivity
@@ -350,9 +384,9 @@ st.write(
 theta_G_grid = np.array([0.0, 0.01, 0.03, 0.05, 0.08, 0.10, 0.15, 0.20, 0.30, 0.40])
 try:
     theta_L_pub = calibrate_theta_L(theta_N_v, delta_v, r_v, 1.0, theta_G_v,
-                                     s_G_old_v * f_GB_v, s_G_old_v * f_IG_v, s_G_old_v * f_TR_v,
+                                     s_G_old_v * f_IG_v, s_G_old_v * f_GT_v,
                                      financing == "income_tax", N_target_v)
-    tbl = public_investment_long_run(theta_N_v, delta_v, r_v, 1.0, s_G_old_v * f_GB_v, theta_L_pub,
+    tbl = public_investment_long_run(theta_N_v, delta_v, r_v, 1.0, s_G_old_v * f_GT_v, theta_L_pub,
                                       financing == "income_tax", theta_G_grid,
                                       s_IG=max(s_G_old_v * f_IG_v, 1e-4))
     table4 = pd.DataFrame({
@@ -378,7 +412,7 @@ try:
     )
     st.caption("Even mildly productive public capital (θ_G ≈ 0.03-0.05, "
                "Baxter & King's benchmark) generates a long-run output multiplier several "
-               "times larger than basic government purchases, driven by the full "
+               "times larger than basic government spending, driven by the full "
                "general-equilibrium response of private capital and labor.")
 except Exception as exc:  # noqa: BLE001
     st.error(f"Could not compute Table 4 with the current sidebar settings: {exc}")
@@ -404,11 +438,19 @@ with st.expander("ℹ️ Methodology notes"):
   They differ only in whether that tax enters the household's labor-leisure and
   capital-Euler first-order conditions as a (1-τ) wedge (Income tax) or not (Lump-sum,
   a true non-distorting poll tax for revenue purposes).
-- **Composition (item 6)**: total government purchases G/Y is split into basic
-  purchases G_B (pure resource cost), public investment Iᴳ (accumulates into Kᴳ,
-  productivity-enhancing if θ_G>0), and transfers TR (resource-neutral, returned to
-  households). Only G_B and Iᴳ enter the economy-wide resource constraint
-  Y=C+I+G_B+Iᴳ; TR nets out in aggregate.
+- **Composition (item 6)**: total government spending G/Y is split into public
+  investment Iᴳ (accumulates into Kᴳ, productivity-enhancing if θ_G>0) and transfers
+  G_T (resource-neutral, returned to households). There is no separate "basic
+  purchases" category, since the utility function never assigns households any value
+  from government consumption directly -- only Iᴳ enters the economy-wide resource
+  constraint Y=C+I+Iᴳ; G_T nets out in aggregate.
+- **Panel 1** compares the paper's *fixed* benchmark calibration (θ_N=0.58, δ=10%,
+  r=6.5%, G/Y=20%, all of it transfers, lump-sum financing, θ_G=0) against whatever
+  the sidebar is *currently* set to, so every control (not just ΔG/Y) shows up as a
+  difference there. The **multipliers and transition dynamics**, by contrast,
+  isolate the effect of the ΔG/Y policy lever specifically, holding every other
+  structural parameter fixed on both sides of that comparison -- which is why they
+  need ΔG/Y ≠ 0 to be defined.
 - Reported multipliers are close to, but will not exactly reproduce, the point
   estimates in the paper's Tables 2-4, which are built from a closed-form elasticity
   approximation (equation 16/16'); this app instead solves the *exact* nonlinear
@@ -443,7 +485,7 @@ st.markdown(
 | $K_t$ | Private capital stock |
 | $K^G_t$ | Public (government) capital stock |
 | $I_t,\ I^G_t$ | Private and public investment |
-| $G_{B,t},\ TR_t$ | "Basic" government purchases and lump-sum transfers |
+| $G_{T,t}$ | Lump-sum government transfers |
 | $w_t,\ r_t$ | Real wage and real rental rate on capital |
 | $\tau_t$ | Tax rate |
 | $\theta_N,\ \theta_K=1-\theta_N$ | Labor's and capital's shares of income |
@@ -462,10 +504,14 @@ st.latex(r"u(C_t, N_t) = \ln C_t + \theta_L \ln(1-N_t)")
 st.markdown(
     "Households value consumption and leisure, with **log utility** in each — the "
     "standard King-Plosser-Rebelo preference specification that keeps labor supply "
-    "responses well-behaved along a balanced growth path. $\\theta_L$ is not a free "
-    "slider in this app; instead it is *calibrated* (see A.6) so that steady-state "
-    "labor supply matches the target hours-worked share at the baseline policy — "
-    "exactly as Baxter & King do in their Table 1."
+    "responses well-behaved along a balanced growth path. Notice government spending "
+    "does **not** appear here at all -- households derive no direct utility from "
+    "$G_{T,t}$ or $I^G_t$, which is exactly why there is no separate \"basic "
+    "purchases\" term anywhere in this model: a category of spending the household "
+    "valued directly would need to enter this utility function, and none does. "
+    "$\\theta_L$ is not a free slider in this app; instead it is *calibrated* (see "
+    "A.6) so that steady-state labor supply matches the target hours-worked share at "
+    "the baseline policy — exactly as Baxter & King do in their Table 1."
 )
 
 st.subheader("A.3 Technology")
@@ -476,7 +522,7 @@ st.markdown(
     "public capital $K^G_t$ as a third input: it raises the productivity of *every* "
     "private input without the government having to pay for it again next period — "
     "a non-rival \"public good\" flavor. Setting $\\theta_G=0$ collapses this exactly "
-    "to the paper's baseline model, where government purchases are a pure resource "
+    "to the paper's baseline model, where public investment is a pure resource "
     "cost with no productivity effect."
 )
 
@@ -485,79 +531,94 @@ st.latex(r"K_{t+1} = (1-\delta)K_t + I_t \qquad\qquad K^G_{t+1} = (1-\delta)K^G_
 st.markdown(
     "Both private and public capital accumulate by the standard **perpetual "
     "inventory** rule, and (for simplicity) depreciate at the same rate $\\delta$. "
-    "Public capital is financed by public investment $I^G_t$, one of the three "
-    "components of total government purchases (sidebar item 6)."
+    "Public capital is financed by public investment $I^G_t$, one of the two "
+    "components of total government spending (sidebar item 6)."
 )
 
 st.subheader("A.5 Resource constraint and the government budget")
-st.latex(r"Y_t = C_t + I_t + G_{B,t} + I^G_t")
+st.latex(r"Y_t = C_t + I_t + I^G_t")
 st.markdown(
-    "Output is used for private consumption, private investment, basic government "
-    "purchases, and public investment. **Transfers $TR_t$ do not appear here** — a "
-    "transfer just moves resources from the government's books to a household's "
-    "pocket without using up any output, so it nets out of the economy-wide "
-    "resource constraint even though it is part of the government's budget below."
+    "Output is used for private consumption, private investment, and public "
+    "investment. **Transfers $G_{T,t}$ do not appear here** — a transfer just moves "
+    "resources from the government's books to a household's pocket without using up "
+    "any output, so it nets out of the economy-wide resource constraint even though "
+    "it is part of the government's budget below. (There is likewise no \"basic "
+    "purchases\" term: since it would never enter the utility function of A.2 either, "
+    "keeping it in the model would just be another resource-using category "
+    "economically indistinguishable from public investment, so this app folds all "
+    "resource-using spending into $I^G_t$.)"
 )
-st.latex(r"\tau_t Y_t = G_{B,t} + I^G_t + TR_t, \qquad \tau_t = \dfrac{G_{B,t}+I^G_t+TR_t}{Y_t}")
+st.latex(r"\tau_t Y_t = I^G_t + G_{T,t}, \qquad \tau_t = \dfrac{I^G_t+G_{T,t}}{Y_t}")
 st.markdown(
     "The government's budget always balances **every period** (no debt in this "
-    "model), and the tax rate is *defined* as total government purchases divided "
+    "model), and the tax rate is *defined* as total government spending divided "
     "by output. This holds **identically under both financing rules** in the "
     "sidebar (item 2) — what differs between them is not how much revenue is "
     "raised, but whether that revenue collection distorts the household's "
     "decisions, in the household budget constraint below."
 )
-st.latex(r"\text{Income tax:}\quad C_t+I_t = (1-\tau_t)\big(w_tN_t+r_tK_t\big) + TR_t")
-st.latex(r"\text{Lump-sum:}\quad C_t+I_t = w_tN_t+r_tK_t - \tau_tY_t + TR_t")
+st.latex(r"\text{Income tax:}\quad C_t+I_t = (1-\tau_t)\big(w_tN_t+r_tK_t\big) + G_{T,t}")
+st.latex(r"\text{Lump-sum:}\quad C_t+I_t = w_tN_t+r_tK_t - \tau_tY_t + G_{T,t}")
 st.markdown(
-    "Under **Income tax** financing, $\\tau_t$ is a proportional wedge that shrinks "
-    "the *marginal* return to working and saving — this is what makes the tax "
-    "distortionary. Under **Lump-sum** financing, the same total revenue $\\tau_t "
-    "Y_t$ is instead collected as a poll tax that does not depend on how much the "
-    "household chooses to work or save, so it creates a pure income (wealth) "
-    "effect with no substitution effect at the margin."
+    "Under **Income tax** financing, $(1-\\tau_t)$ is a proportional wedge that "
+    "shrinks the *marginal* return to working and saving — this is what makes the "
+    "tax distortionary. Under **Lump-sum** financing, the same total revenue "
+    "$\\tau_t Y_t$ is instead collected as a poll tax that does not depend on how "
+    "much the household chooses to work or save, so the household simply faces "
+    "$w_t$ and $r_t$ directly (no $(1-\\tau_t)$ term at all), creating a pure income "
+    "(wealth) effect with no substitution effect at the margin."
 )
 
 st.subheader("A.6 Household optimization")
-st.markdown("Maximizing lifetime utility subject to the budget constraint above gives two first-order conditions.")
-st.latex(r"\text{Labor-leisure:}\qquad \theta_L\,\frac{C_t}{1-N_t} = \omega_t\,w_t")
+st.markdown("Maximizing lifetime utility subject to the budget constraint above gives two first-order conditions, one per financing rule.")
+st.latex(r"\text{Labor-leisure, income tax:}\qquad \theta_L\,\frac{C_t}{1-N_t} = (1-\tau_t)\,w_t")
+st.latex(r"\text{Labor-leisure, lump-sum:}\qquad \theta_L\,\frac{C_t}{1-N_t} = w_t")
 st.markdown(
     "The household works until the marginal disutility of an extra hour (left side) "
-    "equals its marginal after-tax benefit (right side). $\\omega_t=(1-\\tau_t)$ "
-    "under Income tax financing and $\\omega_t=1$ under Lump-sum financing — this "
-    "single wedge is *the* mechanism generating the app's negative multiplier "
-    "result under Income tax."
+    "equals its marginal after-tax benefit (right side). Under income tax financing "
+    "that benefit is shrunk by $(1-\\tau_t)$; under lump-sum financing there is no "
+    "such wedge at all — this single difference is *the* mechanism generating the "
+    "app's negative multiplier result under Income tax."
 )
-st.latex(r"\text{Euler equation:}\qquad \frac{1}{C_t} = \beta\,E_t\!\left[\frac{1+\omega_{t+1}\,\mathrm{MPK}_{t+1}-\delta}{C_{t+1}}\right],\qquad \beta=\frac{1}{1+r}")
+st.latex(r"\text{Euler, income tax:}\qquad \frac{1}{C_t} = \beta\,E_t\!\left[\frac{1+(1-\tau_{t+1})\,\mathrm{MPK}_{t+1}-\delta}{C_{t+1}}\right]")
+st.latex(r"\text{Euler, lump-sum:}\qquad \frac{1}{C_t} = \beta\,E_t\!\left[\frac{1+\mathrm{MPK}_{t+1}-\delta}{C_{t+1}}\right],\qquad \beta=\frac{1}{1+r}")
 st.markdown(
     "The household is indifferent between consuming one more unit today and "
-    "saving it to consume $(1+\\text{after-tax net return})$ units tomorrow. This "
-    "is the equation that makes consumption **forward-looking** — its expectation "
-    "of the *entire future* path of the economy is baked into today's consumption "
-    "choice, which is exactly why the transition path (A.8) has to be solved with "
-    "a saddle-path method rather than simulated forward period by period."
+    "saving it to consume $(1+\\text{after-tax net return})$ units tomorrow — with "
+    "the same $(1-\\tau_{t+1})$ wedge on the capital return under income tax, and "
+    "no wedge under lump-sum. This is the equation that makes consumption "
+    "**forward-looking** — its expectation of the *entire future* path of the "
+    "economy is baked into today's consumption choice, which is exactly why the "
+    "transition path (A.8) has to be solved with a saddle-path method rather than "
+    "simulated forward period by period."
 )
 st.markdown(
     r"Prices are just marginal products: the wage $w_t=\theta_N Y_t/N_t$ (marginal "
     r"product of labor) and the rental rate $\mathrm{MPK}_t = \theta_K Y_t/K_t$ "
-    r"(marginal product of capital); in steady state $\omega\,\mathrm{MPK}=r+\delta$."
+    r"(marginal product of capital); in steady state, under income tax financing, "
+    r"$(1-\tau)\mathrm{MPK}=r+\delta$, and under lump-sum financing, $\mathrm{MPK}=r+\delta$."
 )
 
 st.subheader("A.7 Steady state (closed form)")
 st.markdown(
     "Because the production function has constant returns to scale in $(K,N)$, "
     "the capital/labor ratio $\\kappa=K/N$ is pinned down by the capital-Euler "
-    "condition **alone**, independent of labor supply:"
+    "condition **alone**, independent of labor supply. Under income tax financing:"
 )
-st.latex(r"\omega\,\theta_K\,A\,(K^G/N)^{\theta_G}\,\kappa^{\theta_K-1} = r+\delta")
+st.latex(r"(1-\tau)\,\theta_K\,A\,(K^G/N)^{\theta_G}\,\kappa^{\theta_K-1} = r+\delta")
+st.markdown("and under lump-sum financing (no tax wedge at all):")
+st.latex(r"\theta_K\,A\,(K^G/N)^{\theta_G}\,\kappa^{\theta_K-1} = r+\delta")
 st.markdown(
     "(When $\\theta_G>0$ this is solved by a quick fixed-point iteration, since "
     "$K^G=I^G/\\delta$ itself depends on output — see the code's "
     "`_supply_side_impl`.) Everything else in the steady state then follows in "
-    "closed form, with $s_C=1-s_I-s_{G_B}-s_{I^G}$ the steady-state consumption "
-    "share and $s_I=\\delta\\kappa/(Y/N)$ the investment share:"
+    "closed form, with $s_C=1-s_I-s_{I^G}$ the steady-state consumption "
+    "share (note transfers $G_T$ never reduce $s_C$, since they aren't resource-using) "
+    "and $s_I=\\delta\\kappa/(Y/N)$ the investment share. Under income tax financing:"
 )
-st.latex(r"N = \frac{\omega\,\theta_N}{\theta_L\,s_C + \omega\,\theta_N}")
+st.latex(r"N = \frac{(1-\tau)\,\theta_N}{\theta_L\,s_C + (1-\tau)\,\theta_N}")
+st.markdown("and under lump-sum financing:")
+st.latex(r"N = \frac{\theta_N}{\theta_L\,s_C + \theta_N}")
 st.latex(r"Y=\frac{Y}{N}\cdot N,\qquad K=\kappa N,\qquad C=s_C\,Y,\qquad I=s_I\,Y")
 st.markdown(
     "This is the exact equation solved for the "
