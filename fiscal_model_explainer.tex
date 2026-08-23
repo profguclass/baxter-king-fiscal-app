@@ -1,0 +1,669 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{array}
+\usepackage{mdframed}
+\usepackage{enumitem}
+
+\definecolor{notebg}{RGB}{255,248,230}
+\definecolor{noteborder}{RGB}{200,150,40}
+\definecolor{exbg}{RGB}{235,245,255}
+\definecolor{exborder}{RGB}{60,110,180}
+
+\newmdenv[backgroundcolor=notebg, linecolor=noteborder, linewidth=1pt,
+          innertopmargin=6pt, innerbottommargin=6pt, innerleftmargin=8pt, innerrightmargin=8pt]{notebox}
+\newmdenv[backgroundcolor=exbg, linecolor=exborder, linewidth=1pt,
+          innertopmargin=6pt, innerbottommargin=6pt, innerleftmargin=8pt, innerrightmargin=8pt]{casebox}
+
+\newcommand{\eq}[1]{\begin{equation}#1\end{equation}}
+
+\title{Fiscal Policy in General Equilibrium:\\
+Model Specification and Worked Cases\\
+\large A companion to the Baxter \& King (1993) replication app}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent This document is written for undergraduates using the interactive
+app at \url{https://baxter-king.streamlit.app/} to explore Baxter \& King
+(1993, \textit{American Economic Review}), ``Fiscal Policy in General
+Equilibrium.'' Part I lays out the full model the app solves: preferences,
+technology (including the Section VI extension for productive public
+capital), the government's budget, the household's optimality conditions,
+the closed-form steady state, and the log-linear transition dynamics. Part
+II works through several cases that are easy to get wrong intuitively ---
+why a spending \emph{composition} change is not economically neutral even
+when public capital is unproductive, why the \emph{financing rule} moves the
+economy even when every dollar of tax revenue is handed straight back, and
+why several steady-state variables always move by the exact same percentage
+by mathematical necessity, not by coincidence.
+\end{abstract}
+
+\tableofcontents
+
+\part{Model specification}
+
+\section{Notation}
+
+\begin{center}
+\begin{tabular}{cl}
+\toprule
+Symbol & Meaning \\
+\midrule
+$C_t$ & Consumption \\
+$N_t$ & Labor supplied (fraction of the time endowment); $L_t=1-N_t$ is leisure \\
+$Y_t$ & Output \\
+$K_t$ & Private capital stock \\
+$K^G_t$ & Public (government) capital stock \\
+$I_t,\ I^G_t$ & Private and public investment \\
+$G_{T,t}$ & Lump-sum government transfers \\
+$w_t,\ r_t$ & Real wage and real rental rate on capital \\
+$\tau_t$ & Tax rate \\
+$\theta_N,\ \theta_K=1-\theta_N$ & Labor's and capital's shares of income \\
+$\theta_G$ & Productivity of public capital (Section VI extension) \\
+$\theta_L$ & Weight on leisure in utility (calibrated, not a free parameter) \\
+$\delta$ & Depreciation rate (same for $K$ and $K^G$) \\
+$A$ & Total factor productivity, normalized to $1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+A hat over a variable, e.g.\ $\hat y_t$, denotes a percent deviation from
+steady state --- the units used in every transition-path chart in the app.
+
+\section{Preferences}
+
+\eq{ u(C_t,N_t) = \ln C_t + \theta_L \ln(1-N_t) }
+
+Households value consumption and leisure, with log utility in each --- the
+standard King--Plosser--Rebelo specification that keeps balanced-growth
+labor supply well behaved. Notice that government spending does \emph{not}
+appear here at all: households get no direct utility from transfers
+$G_{T,t}$ or public investment $I^G_t$. This single fact is the seed of
+almost everything counterintuitive in Part II --- government spending only
+ever affects the household \emph{indirectly}, through the resource
+constraint and the budget constraint, never through a warm-glow ``I like
+government spending'' term.
+
+\begin{notebox}
+\textbf{Why is there no ``basic government purchases'' category?} Many
+textbook treatments split $G$ into wasteful ``purchases'' $G_B$, productive
+investment $I^G$, and transfers $G_T$. Here $G_B$ is dropped because it
+would be economically identical to $I^G$ at $\theta_G=0$: neither enters
+utility, and both use up real resources one-for-one. Keeping a separate
+$G_B$ category would just be relabeling. Total government spending in this
+model is therefore always exactly two pieces: $G = I^G + G_T$.
+\end{notebox}
+
+\section{Technology}
+
+\eq{ Y_t = A\,K_t^{\theta_K}\,(K^G_t)^{\theta_G}\,N_t^{\theta_N}, \qquad \theta_K=1-\theta_N }
+
+Output is Cobb--Douglas in private capital and labor, exactly as in the
+paper's baseline model. The Section VI extension (and the app's $\theta_G$
+slider) adds public capital $K^G_t$ as a third input: it raises the
+productivity of every private input, without the government paying for it
+again next period --- a non-rival ``public good'' flavor. Setting
+$\theta_G=0$ collapses this exactly to the paper's baseline model, where
+public investment is a pure resource cost with \emph{no} productivity
+effect. Note that $\theta_K+\theta_N=1$ (constant returns to scale in
+$(K,N)$ alone) but $\theta_G$ is \emph{extra}: when $\theta_G>0$ the
+production function has \emph{increasing} returns to scale in
+$(K,K^G,N)$ jointly, which is exactly the source of the model's
+``multiplier $>1$'' results in Part II.
+
+\section{Capital accumulation}
+
+\eq{ K_{t+1} = (1-\delta)K_t + I_t \qquad\qquad K^G_{t+1} = (1-\delta)K^G_t + I^G_t }
+
+Both stocks accumulate by the standard perpetual-inventory rule and (for
+simplicity) depreciate at the same rate $\delta$.
+
+\section{Resource constraint and the government budget}
+
+\eq{ Y_t = C_t + I_t + I^G_t }
+
+Output is used for private consumption, private investment, and public
+investment. \textbf{Transfers do not appear here.} A transfer just moves
+resources from the government's books to a household's pocket without using
+up any output, so it nets out of the economy-wide resource constraint even
+though it is part of the government's budget below.
+
+\eq{ \tau_t Y_t = I^G_t + G_{T,t}, \qquad \tau_t = \frac{I^G_t+G_{T,t}}{Y_t} }
+
+The government's budget balances every period (no debt in this model), and
+the tax rate is \emph{defined} as total government spending divided by
+output. This holds identically under \emph{both} financing rules below ---
+what differs between them is not how much revenue is raised, but whether
+raising it distorts the household's decisions.
+
+\eq{ \text{Income tax:}\quad C_t+I_t = (1-\tau_t)\big(w_tN_t+r_tK_t\big) + G_{T,t} }
+\eq{ \text{Lump-sum:}\quad C_t+I_t = w_tN_t+r_tK_t - \tau_tY_t + G_{T,t} }
+
+Under \textbf{income tax} financing, $(1-\tau_t)$ is a proportional wedge
+that shrinks the \emph{marginal} return to working and saving --- this is
+what makes the tax distortionary. Under \textbf{lump-sum} financing, the
+same total revenue $\tau_t Y_t$ is instead collected as a poll tax that does
+not depend on how much the household works or saves, so the household faces
+$w_t$ and $r_t$ directly (no $(1-\tau_t)$ term at all): a pure income
+(wealth) effect with no substitution effect at the margin.
+
+\section{Household optimization}
+
+Maximizing lifetime utility subject to the budget constraint gives two
+first-order conditions, one per financing rule.
+
+\eq{ \text{Labor-leisure, income tax:}\qquad \theta_L\,\frac{C_t}{1-N_t} = (1-\tau_t)\,w_t }
+\eq{ \text{Labor-leisure, lump-sum:}\qquad \theta_L\,\frac{C_t}{1-N_t} = w_t }
+
+The household works until the marginal disutility of an extra hour (left
+side) equals its marginal after-tax benefit (right side). Under income tax
+financing that benefit is shrunk by $(1-\tau_t)$; under lump-sum financing
+there is no such wedge at all.
+
+\eq{ \text{Euler, income tax:}\qquad \frac{1}{C_t} = \beta\,\frac{1+(1-\tau_{t+1})\,\mathrm{MPK}_{t+1}-\delta}{C_{t+1}} }
+\eq{ \text{Euler, lump-sum:}\qquad \frac{1}{C_t} = \beta\,\frac{1+\mathrm{MPK}_{t+1}-\delta}{C_{t+1}},\qquad \beta=\frac{1}{1+r} }
+
+There is no expectation operator here: this model has no stochastic
+element (no random shocks to technology, policy, or anything else), so
+every ``future'' variable is simply its known, perfect-foresight value.
+The household is not \emph{guessing} what $C_{t+1}$ or $\mathrm{MPK}_{t+1}$
+will be --- under a given policy path it \emph{knows}, and the Euler
+equation is an ordinary deterministic difference equation linking today's
+consumption to tomorrow's. (This is what makes the transition path in
+Section~\ref{sec:steadystate} below solvable by exact saddle-path methods
+rather than by simulation.)
+
+Prices are marginal products: $w_t=\theta_N Y_t/N_t$ and
+$\mathrm{MPK}_t=\theta_K Y_t/K_t$. In steady state, $(1-\tau)\mathrm{MPK}=r+\delta$
+under income tax, and $\mathrm{MPK}=r+\delta$ under lump-sum.
+
+\section{Steady state (closed form)}
+\label{sec:steadystate}
+
+Because $\theta_K+\theta_N=1$, dividing the technology equation through by
+$N$ leaves the capital/labor ratio $\kappa=K/N$ pinned down by a
+capital-Euler condition written in \emph{per-worker} public capital
+$K^G/N$ --- but with an extra $N^{\theta_G}$ factor that does \emph{not}
+cancel, since $K^G$ is itself funded as a share of \emph{aggregate} output,
+not of output per worker:
+
+\eq{ \text{Income tax:}\qquad (1-\tau)\,\theta_K\,A\,(K^G/N)^{\theta_G}\,N^{\theta_G}\,\kappa^{\theta_K-1} = r+\delta }
+\eq{ \text{Lump-sum:}\qquad \theta_K\,A\,(K^G/N)^{\theta_G}\,N^{\theta_G}\,\kappa^{\theta_K-1} = r+\delta }
+
+When $\theta_G=0$ the $N^{\theta_G}$ factor is just $1$ and this collapses
+to the familiar CRS-in-$(K,N)$ formula, solved for $\kappa$ directly. When
+$\theta_G>0$, $K^G=I^G/\delta$ itself depends on output, \emph{and} the
+equation above depends on $N$ directly too, so the app solves a small
+nested fixed point (first on $\kappa$ given a guess for $N$, then updating
+$N$, iterating to convergence).
+
+Everything else then follows in closed form, with
+$s_C=1-s_I-s_{I^G}$ the steady-state consumption share (transfers never
+reduce $s_C$, since they are not resource-using) and $s_I=\delta\kappa/(Y/N)$
+the investment share:
+
+\eq{ \text{Income tax:}\qquad N = \frac{(1-\tau)\,\theta_N}{\theta_L\,s_C + (1-\tau)\,\theta_N} }
+\eq{ \text{Lump-sum:}\qquad N = \frac{\theta_N}{\theta_L\,s_C + \theta_N} }
+\eq{ Y=\frac{Y}{N}\cdot N,\qquad K=\kappa N,\qquad C=s_C\,Y,\qquad I=s_I\,Y }
+
+$\theta_L$ itself is not a free parameter: it is \emph{calibrated} once, at
+a chosen baseline policy, so that steady-state $N$ matches a target
+hours-worked share (the paper's Table 1 strategy, and $N_{\text{target}}=20\%$
+in the app). Holding that calibrated $\theta_L$ fixed while comparing two
+different policies is what lets $N$ move \emph{honestly} in response to a
+policy change, rather than being pinned back to the target by construction.
+
+\section{Transition dynamics (log-linearized)}
+
+Around a steady state, every equation above can be approximated to first
+order in percent deviations. The production and labor-supply conditions
+combine into one static relationship,
+\eq{ \hat y_t = y_k\,\hat k_t + y_{kg}\,\hat{k}^G_t + y_c\,\hat c_t + y_g\,\hat g_t, }
+capital accumulation becomes a linear law of motion for the
+\emph{predetermined} state $\hat k_t$,
+\eq{ \hat k_{t+1} = \Phi_{kk}\,\hat k_t + \Phi_{kc}\,\hat c_t + \Phi_{kg}\,\hat g_t + \Phi_{k,kg}\,\hat{k}^G_t, }
+and the Euler equation pins down the \emph{forward-looking} (``jump'')
+variable $\hat c_t$ in terms of tomorrow's capital and government spending,
+\eq{ \hat c_t = \text{coef}_c\,\hat c_{t+1} + \text{coef}_k\,\hat k_{t+1} + \text{coef}_g\,\hat g_{t+1} + \text{coef}_{kg}\,\hat{k}^G_{t+1}. }
+Public capital's own law of motion is exogenous, so the system has exactly
+one predetermined and one jump variable: it is \textbf{saddle-path stable},
+with one stable and one unstable eigenvalue of the reduced-form transition
+matrix. The app diagonalizes that matrix and pins the unstable component to
+the present value of \emph{future} government-spending shocks (the
+King--Plosser--Rebelo / Blanchard--Kahn method) rather than simulating
+forward naively, which would blow up numerically.
+
+\part{Worked cases}
+
+The three cases below are the ones students most often get wrong by
+intuition alone. Each one follows directly from the equations in Part I;
+none of them requires anything beyond substituting numbers into the
+closed-form steady state of Section~\ref{sec:steadystate}.
+
+\section{Case A: composition is \emph{not} neutral once $I^G>0$, even at $\theta_G=0$}
+\label{sec:caseA}
+
+\textbf{Claim to test:} ``If public capital isn't productive ($\theta_G=0$),
+then it shouldn't matter whether government spending is transfers or public
+investment --- both are just money moving around.''
+
+\textbf{Why this is wrong.} Transfers $G_T$ are \emph{not} resource-using:
+they cancel out of the resource constraint $Y=C+I+I^G$ entirely. Public
+investment $I^G$ \emph{is} resource-using, with or without $\theta_G>0$ ---
+it is a real claim on output that competes with $C$ and $I$ for the same
+$Y$. So shifting the composition of a fixed total $G/Y$ from transfers
+toward public investment is economically identical to raising ordinary,
+unproductive government purchases: a negative wealth effect that makes the
+household work more, even though public capital does nothing for
+productivity.
+
+\begin{casebox}
+\textbf{Numerical example.} $\theta_N=0.58$, $\delta=10\%$, $r=6.5\%$,
+$G/Y=20\%$, $\theta_G=0$, lump-sum financing, $\theta_L$ calibrated once at
+$I^G/G=0\%$ so that $N=20.0\%$ there.
+
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+$I^G/G$ share & $N$ & $Y$ & $C$ & $I^G$ \\
+\midrule
+$0\%$ (all transfers)   & $20.0\%$ & $0.3934$ & $0.2933$ & $0.0000$ \\
+$50\%$                  & $22.4\%$ & $0.4407$ & $0.2845$ & $0.0441$ \\
+$100\%$ (all investment) & $25.5\%$ & $0.5009$ & $0.2732$ & $0.1002$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{casebox}
+
+$N$, $Y$, and $I$ all rise as the investment share rises, purely from the
+resource-cost channel --- \emph{before} any productivity effect is even
+switched on. This is exactly why the app's own Table 4 panel documents that
+its $\theta_G=0$ row reproduces the \emph{ordinary} lump-sum
+government-purchases multiplier ($\approx 1.16$), not zero.
+
+\begin{notebox}
+\textbf{The one truly neutral corner case.} If (and only if) financing is
+lump-sum \emph{and} the composition is already $100\%$ transfers
+($I^G/G=0$), then changing the \emph{level} of $G/Y$ is a pure wash: a
+lump-sum tax funding an equal-sized lump-sum transfer leaves $Y,C,I,K,N$
+completely flat, since there is no $(1-\tau)$ wedge to distort anything and
+no resource-using spending to crowd anything out. This is the \emph{only}
+combination of settings under which government spending has literally zero
+real effect.
+\end{notebox}
+
+\section{Case B: the financing rule moves the economy even at $100\%$ transfers}
+\label{sec:caseB}
+
+\textbf{Claim to test:} ``If every dollar of tax revenue is handed straight
+back to households as a transfer, it shouldn't matter whether it was
+collected as a lump-sum poll tax or an income tax --- the household ends up
+with the same net income either way.''
+
+\textbf{Why this is wrong.} The claim confuses the \emph{level} of net
+transfers with the \emph{marginal} incentive to work and save. Under income
+tax financing, the household's capital-Euler condition contains a
+$(1-\tau)$ wedge on the \emph{pre-tax} marginal product of capital:
+$(1-\tau)\,\theta_K A \kappa^{\theta_K-1}=r+\delta$, instead of
+$\theta_K A \kappa^{\theta_K-1}=r+\delta$. To earn the same after-tax return
+$r$, the household needs a \emph{higher} pre-tax marginal product, which
+means holding \emph{less} capital per worker $\kappa$ in equilibrium --- a
+real, permanent effect on the capital stock that has nothing to do with
+where the tax revenue eventually lands. The same logic applies to the
+labor-leisure condition.
+
+\begin{casebox}
+\textbf{Numerical example.} $\theta_N=0.58$, $\delta=10\%$, $r=6.5\%$,
+$G/Y=20\%$, all of it transfers ($I^G/G=0\%$), $\theta_G=0$. $\theta_L$ is
+calibrated \emph{separately} under each financing rule so that $N=20.0\%$ in
+both cases --- this isolates the capital-stock channel from any mechanical
+change in hours.
+
+\begin{center}
+\begin{tabular}{cccccc}
+\toprule
+Financing & $N$ & $Y$ & $C$ & $K$ & $w$ \\
+\midrule
+Lump-sum   & $20.0\%$ & $0.3934$ & $0.2933$ & $1.0014$ & $1.1409$ \\
+Income tax & $20.0\%$ & $0.3347$ & $0.2666$ & $0.6816$ & $0.9707$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Switching from lump-sum to income tax financing, with $G/Y$, composition,
+and $\theta_G$ all unchanged, cuts $Y$ by $\approx 15\%$ and $K$ by
+$\approx 32\%$. $N$ is unchanged only because $\theta_L$ was
+\emph{recalibrated} to hit the same target hours under each rule --- if
+$\theta_L$ is instead held fixed at one rule's calibrated value (as the app
+does when comparing two \emph{policies} under the \emph{same} financing
+rule), $N$ falls too under income tax, since the labor-leisure wedge
+directly discourages work at the margin.
+\end{casebox}
+
+\begin{notebox}
+\textbf{Takeaway.} There is no ``neutral financing switch'' the way there
+is a neutral composition/level corner case in Case A. The distortion lives
+on the household's first-order conditions --- the \emph{margin} --- not on
+the government's balance sheet, so it cannot be undone by any choice of
+what the revenue funds.
+\end{notebox}
+
+\section{Case C: four steady-state variables always move by the identical percentage}
+\label{sec:caseC}
+
+\textbf{Claim to test:} ``If two variables show the exact same percent
+change in a comparison table, that must be a coincidence or a bug.''
+
+\textbf{Why this is wrong.} Three of the model's accounting identities are
+exact, not approximate, and they chain together to force four variables ---
+total government spending $G$, public investment $I^G$, transfers $G_T$,
+and public capital $K^G$ --- to move by \emph{exactly} the same percentage
+whenever the composition shares and $\delta$ are held fixed between the two
+points being compared:
+\eq{ I^G = f_{I^G}\cdot G, \qquad G_T = f_{G_T}\cdot G \qquad \Longrightarrow \qquad \%\Delta I^G = \%\Delta G_T = \%\Delta G }
+\eq{ K^G = \frac{I^G}{\delta} \qquad \Longrightarrow \qquad \%\Delta K^G = \%\Delta I^G }
+
+Chaining these: $\%\Delta K^G=\%\Delta I^G=\%\Delta G=\%\Delta G_T$, always,
+regardless of what is \emph{driving} the change in $G$ (a change in $\theta_G$,
+$r$, financing, or $G/Y$ itself). The \emph{levels} of these four variables
+can differ enormously --- $K^G$ is typically many times larger than $I^G$,
+since $K^G=I^G/\delta$ with $\delta$ small --- but the \emph{ratio} between
+any two comparison points is forced to be identical by these three
+equations, so their percent changes print identically in any comparison
+table. This is a feature of the model's bookkeeping, not evidence of an
+error.
+
+\section{Summary table}
+
+\begin{center}
+\begin{tabular}{p{0.32\textwidth}p{0.6\textwidth}}
+\toprule
+Question & Answer \\
+\midrule
+Does raising $I^G/G$ at $\theta_G=0$ do anything? &
+\textbf{Yes} --- it acts like ordinary unproductive spending (Case A). \\[4pt]
+Is there \emph{any} setting where changing $G/Y$ does nothing at all? &
+\textbf{Yes, exactly one:} lump-sum financing \emph{and} $100\%$ transfers
+(Case A, notebox). \\[4pt]
+Does switching financing alone matter if all revenue is transferred back? &
+\textbf{Yes} --- the $(1-\tau)$ wedge is on the margin, not on net income
+(Case B). \\[4pt]
+Why do $G$, $I^G$, $G_T$, $K^G$ often show identical \% change? &
+Because $I^G=f_{I^G}G$, $G_T=f_{G_T}G$, and $K^G=I^G/\delta$ are exact
+identities whenever composition shares and $\delta$ are unchanged (Case C). \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\appendix
+\part{Appendix: full derivations}
+
+This appendix derives, from scratch, every equation asserted without proof
+in Part I: the two household first-order conditions (labor-leisure and
+Euler) for both financing rules, and the closed-form steady-state
+equations built on top of them. Nothing here is new economics --- it is
+the algebra that Part I skipped over.
+
+\section{The firm's problem (why $w_t=\mathrm{MPL}_t$ and $r_t=\mathrm{MPK}_t$)}
+\label{app:firm}
+
+Before touching the household, it is worth pinning down where the prices
+$w_t$ and $r_t$ in the household's budget constraint actually come from.
+A representative, perfectly competitive firm rents private capital and
+labor from households each period and uses the publicly provided capital
+stock $K^G_t$ for free (it is non-rival and supplied by the government, not
+purchased in a market). The firm solves, period by period,
+\eq{ \max_{K_t,\,N_t}\ \ A\,K_t^{\theta_K}(K^G_t)^{\theta_G}N_t^{\theta_N} \;-\; w_tN_t \;-\; r_tK_t. }
+Since $K^G_t$ is taken as given (external to the firm's own choice), the
+first-order conditions are the ordinary marginal-product conditions:
+\eq{ \frac{\partial Y_t}{\partial N_t} = w_t \;\Longrightarrow\; w_t=\theta_N\,\frac{Y_t}{N_t} \equiv \mathrm{MPL}_t, }
+\eq{ \frac{\partial Y_t}{\partial K_t} = r_t \;\Longrightarrow\; r_t=\theta_K\,\frac{Y_t}{K_t} \equiv \mathrm{MPK}_t. }
+Zero profit follows automatically from constant returns to scale in
+$(K_t,N_t)$ (Euler's homogeneous-function theorem): at these prices the
+firm earns exactly $\theta_K Y_t+\theta_N Y_t=Y_t$, paying out all of
+output to the two rented factors. This is why $r_t$ (the household's
+capital income rate) and $\mathrm{MPK}_t$ can be used interchangeably
+below --- they are the \emph{same number} in every period, by the firm's
+optimality condition, not by assumption.
+
+\section{Setting up the household's problem}
+\label{app:setup}
+
+The household chooses sequences $\{C_t,N_t,K_{t+1}\}_{t=0}^{\infty}$ to
+maximize discounted lifetime utility,
+\eq{ \max\ \sum_{t=0}^{\infty}\beta^t\Big[\ln C_t + \theta_L\ln(1-N_t)\Big], \qquad \beta=\frac{1}{1+r}, }
+subject to one budget constraint per period and the capital accumulation
+identity $K_{t+1}=(1-\delta)K_t+I_t$, i.e.\ $I_t=K_{t+1}-(1-\delta)K_t$.
+Substituting this into the two budget constraints of
+Section~5 gives, respectively,
+\eq{ \text{Income tax:}\qquad C_t + K_{t+1}-(1-\delta)K_t = (1-\tau_t)\big(w_tN_t+r_tK_t\big)+G_{T,t}, \label{app:bc-it} }
+\eq{ \text{Lump-sum:}\qquad C_t + K_{t+1}-(1-\delta)K_t = w_tN_t+r_tK_t-\tau_tY_t+G_{T,t}. \label{app:bc-ls} }
+There is no expectation operator anywhere in this problem: the model has
+no stochastic element, so the household is choosing a sequence under
+\textbf{perfect foresight} --- it knows $w_t,r_t,\tau_t,G_{T,t}$ (and hence
+$Y_t$) at every future date along the equilibrium path, given the policy
+being analyzed. Two modeling conventions are worth flagging explicitly:
+\begin{enumerate}[label=(\roman*)]
+\item Under \emph{income tax} financing, the wedge $(1-\tau_t)$ multiplies
+  the household's \emph{own} factor income $w_tN_t+r_tK_t$ --- it is a
+  genuine proportional tax on the household's choices, so it will show up
+  when we differentiate with respect to $N_t$ and $K_{t+1}$ below.
+\item Under \emph{lump-sum} financing, the household's tax bill is written
+  as $\tau_tY_t$, using \emph{aggregate} output $Y_t$, not the household's
+  own income. The (representative) household takes $\tau_tY_t$ as a
+  parameter it cannot affect with its own $N_t$ or $K_t$ choice --- exactly
+  what makes a lump-sum tax lump-sum. This is why $\tau_t$ never appears
+  in the lump-sum first-order conditions below, even though $\tau_tY_t>0$
+  in general.
+\end{enumerate}
+
+\section{Deriving the labor-leisure and Euler conditions}
+\label{app:focs}
+
+Attach a Lagrange multiplier $\lambda_t\ge 0$ (period-$t$'s marginal
+utility of an extra unit of income) to the period-$t$ budget constraint and
+form the Lagrangian. Under \textbf{income tax} financing,
+\eq{
+\mathcal{L} = \sum_{t=0}^{\infty}\beta^t\Big\{
+  \ln C_t + \theta_L\ln(1-N_t)
+  + \lambda_t\Big[(1-\tau_t)(w_tN_t+r_tK_t)+G_{T,t}-C_t-K_{t+1}+(1-\delta)K_t\Big]
+\Big\}.
+}
+
+\paragraph{Step 1: the consumption FOC.} Differentiating with respect to
+$C_t$ (which appears only in period $t$'s bracket) gives
+\eq{ \frac{\partial\mathcal{L}}{\partial C_t} = \beta^t\left[\frac{1}{C_t}-\lambda_t\right]=0 \;\Longrightarrow\; \lambda_t=\frac{1}{C_t}. \label{app:lambda} }
+This is the standard result that the multiplier on the budget constraint
+equals the marginal utility of consumption --- an extra unit of income is
+worth exactly what an extra unit of consumption is worth, since the
+household can always convert one into the other one-for-one within a
+period.
+
+\paragraph{Step 2: the labor-leisure FOC.} Differentiating with respect to
+$N_t$ (also period-$t$-only) gives
+\eq{
+\frac{\partial\mathcal{L}}{\partial N_t}
+= \beta^t\left[-\frac{\theta_L}{1-N_t}+\lambda_t(1-\tau_t)w_t\right]=0.
+}
+(The $-\theta_L/(1-N_t)$ term has a sign flip built in: $\partial
+\ln(1-N_t)/\partial N_t=-1/(1-N_t)$.) Solving and substituting
+$\lambda_t=1/C_t$ from Step 1,
+\eq{ \frac{\theta_L}{1-N_t}=\frac{(1-\tau_t)w_t}{C_t} \;\Longrightarrow\; \boxed{\theta_L\,\frac{C_t}{1-N_t}=(1-\tau_t)\,w_t.} }
+This is exactly the labor-leisure condition of Section~6. Economically:
+the left side is the marginal rate of substitution between consumption and
+leisure (how many units of consumption the household would give up for one
+more unit of leisure); the right side is the after-tax wage, the market
+price of leisure in consumption units. Optimality equates the two.
+
+\paragraph{Step 3: the Euler (capital) FOC.} $K_{t+1}$ is the one variable
+that appears in \emph{two} budget constraints: negatively in period $t$'s
+(it is being accumulated) and positively in period $t+1$'s (it earns
+capital income and is then reduced by depreciation and reinvestment).
+Collecting both appearances,
+\eq{
+\frac{\partial\mathcal{L}}{\partial K_{t+1}}
+= \beta^t(-\lambda_t) + \beta^{t+1}\lambda_{t+1}\Big[(1-\tau_{t+1})r_{t+1}+(1-\delta)\Big] = 0.
+}
+Dividing through by $\beta^t$ and rearranging,
+\eq{ \lambda_t = \beta\,\lambda_{t+1}\Big[1+(1-\tau_{t+1})r_{t+1}-\delta\Big]. }
+Substituting $\lambda_t=1/C_t$, $\lambda_{t+1}=1/C_{t+1}$, and
+$r_{t+1}=\mathrm{MPK}_{t+1}$ (Appendix~\ref{app:firm}),
+\eq{ \boxed{\frac{1}{C_t} = \beta\,\frac{1+(1-\tau_{t+1})\,\mathrm{MPK}_{t+1}-\delta}{C_{t+1}}.} }
+This is exactly the income-tax Euler equation of Section~6. The
+bracketed term $1+(1-\tau_{t+1})\mathrm{MPK}_{t+1}-\delta$ is the
+after-tax gross return on one unit of capital held from $t$ to $t+1$: it
+pays $(1-\tau_{t+1})\mathrm{MPK}_{t+1}$ in after-tax rental income and
+loses $\delta$ to depreciation, on top of the principal. The household is
+indifferent at the margin between consuming a unit today (worth $1/C_t$ in
+utility, by Step~1) and investing it to consume the gross return tomorrow
+(worth $\beta\times\text{return}\times 1/C_{t+1}$ in discounted utility).
+
+\paragraph{The lump-sum case.} Repeat Steps 2--3 with the lump-sum
+Lagrangian,
+\eq{
+\mathcal{L} = \sum_{t=0}^{\infty}\beta^t\Big\{
+  \ln C_t + \theta_L\ln(1-N_t)
+  + \lambda_t\Big[w_tN_t+r_tK_t-\tau_tY_t+G_{T,t}-C_t-K_{t+1}+(1-\delta)K_t\Big]
+\Big\}.
+}
+Because $\tau_tY_t$ does not depend on $N_t$ or $K_{t+1}$ (point (ii) of
+Appendix~\ref{app:setup}), it simply drops out when differentiating:
+\eq{
+\frac{\partial\mathcal{L}}{\partial N_t}=\beta^t\left[-\frac{\theta_L}{1-N_t}+\lambda_tw_t\right]=0
+\;\Longrightarrow\; \boxed{\theta_L\,\frac{C_t}{1-N_t}=w_t,}
+}
+\eq{
+\frac{\partial\mathcal{L}}{\partial K_{t+1}}=\beta^t(-\lambda_t)+\beta^{t+1}\lambda_{t+1}\big[r_{t+1}+(1-\delta)\big]=0
+\;\Longrightarrow\; \boxed{\frac{1}{C_t}=\beta\,\frac{1+\mathrm{MPK}_{t+1}-\delta}{C_{t+1}}.}
+}
+No $(1-\tau)$ wedge appears in either condition: the household's marginal
+trade-offs between consumption/leisure and consumption today/tomorrow are
+completely undistorted, even though the household \emph{does} pay
+$\tau_tY_t$ in taxes every period. This is precisely the sense in which a
+lump-sum tax is non-distorting --- it changes the household's wealth, but
+not the \emph{price} of working an extra hour or saving an extra dollar.
+
+\section{Deriving the closed-form steady state}
+\label{app:steadystate}
+
+A steady state is a situation where every ``great ratio'' and every level
+variable is constant over time: $C_t=C$, $N_t=N$, $K_t=K$, $Y_t=Y$, and so
+on, for all $t$. This section derives every equation of
+Section~\ref{sec:steadystate} in order, starting from the FOCs of
+Appendix~\ref{app:focs}.
+
+\subsection{Step 1: the capital-Euler condition pins down $\kappa=K/N$}
+
+In steady state $C_t=C_{t+1}=C$ and $\mathrm{MPK}_t=\mathrm{MPK}_{t+1}=\mathrm{MPK}$,
+so the Euler equation collapses to an equation with no time subscripts at
+all. Income tax case:
+\eq{ 1 = \beta\big[1+(1-\tau)\mathrm{MPK}-\delta\big] \;\Longrightarrow\; (1-\tau)\mathrm{MPK} = \frac{1}{\beta}-1+\delta. }
+Recall $\beta=1/(1+r)$ was \emph{chosen} so that $1/\beta=1+r$ (the
+household's steady-state discount rate is calibrated to match a target
+real interest rate $r$). Substituting,
+\eq{ \boxed{(1-\tau)\,\mathrm{MPK} = r+\delta.} }
+The lump-sum case is identical without the $(1-\tau)$ factor:
+$\boxed{\mathrm{MPK}=r+\delta.}$ These are the two boxed conditions quoted
+without proof at the start of Section~\ref{sec:steadystate}.
+
+Now expand $\mathrm{MPK}=\theta_K Y/K$ using the technology equation, and
+substitute $K=\kappa N$ (definition of $\kappa$):
+\eq{
+\mathrm{MPK} = \theta_K\,\frac{A K^{\theta_K}(K^G)^{\theta_G}N^{\theta_N}}{K}
+= \theta_K A\,K^{\theta_K-1}(K^G)^{\theta_G}N^{\theta_N}
+= \theta_K A\,\kappa^{\theta_K-1}N^{\theta_K-1}(K^G)^{\theta_G}N^{\theta_N}.
+}
+Since $\theta_K+\theta_N=1$ (constant returns to scale in $(K,N)$ alone,
+Section~4), the two powers of $N$ combine to $N^{\theta_K-1+\theta_N}=N^0=1$,
+leaving
+\eq{ \mathrm{MPK} = \theta_K A\,\kappa^{\theta_K-1}\,(K^G)^{\theta_G}. \label{app:mpk-raw} }
+Notice this uses the \emph{raw} level $K^G$, not $K^G/N$: no $N$ survives
+the cancellation above. To match the per-worker form used in
+Section~\ref{sec:steadystate} and in the app, multiply and divide by
+$N^{\theta_G}$:
+\eq{ (K^G)^{\theta_G} = \left(\frac{K^G}{N}\right)^{\theta_G}N^{\theta_G} \;\Longrightarrow\; \mathrm{MPK} = \theta_K A\,\left(\frac{K^G}{N}\right)^{\theta_G}N^{\theta_G}\,\kappa^{\theta_K-1}. }
+Substituting into the boxed conditions above reproduces exactly
+\eq{ \text{Income tax:}\quad (1-\tau)\,\theta_K\,A\,(K^G/N)^{\theta_G}\,N^{\theta_G}\,\kappa^{\theta_K-1}=r+\delta, }
+\eq{ \text{Lump-sum:}\quad \theta_K\,A\,(K^G/N)^{\theta_G}\,N^{\theta_G}\,\kappa^{\theta_K-1}=r+\delta. }
+\begin{notebox}
+\textbf{Why bother with the $(K^G/N)^{\theta_G}N^{\theta_G}$ split instead
+of just writing $(K^G)^{\theta_G}$?} Because in the fixed-point iteration
+the app actually solves numerically, $K^G$ is not known in advance when
+$\theta_G>0$ --- it depends on output through $K^G=I^G/\delta$, which
+depends on $\kappa$, which is what we are solving for. Working in
+per-worker terms ($K^G/N$) lets the iteration guess and update a
+\emph{scale-free ratio} first, and then multiply back in the explicit
+$N^{\theta_G}$ correction, rather than guessing the level $K^G$ directly.
+When $\theta_G=0$, $N^{\theta_G}=1$ and this distinction is invisible; it
+only matters once public capital is productive.
+\end{notebox}
+
+When $\theta_G=0$, equation~\eqref{app:mpk-raw} has no $K^G$ dependence at
+all, and can be solved for $\kappa$ directly:
+\eq{ \theta_K A\,\kappa^{\theta_K-1} = \frac{r+\delta}{\text{tax\_factor}} \;\Longrightarrow\; \kappa = \left(\frac{\text{tax\_factor}\cdot\theta_K A}{r+\delta}\right)^{\frac{1}{1-\theta_K}}, }
+where $\text{tax\_factor}=(1-\tau)$ under income tax and $1$ under
+lump-sum. When $\theta_G>0$, the same formula holds but with $A$ replaced
+by $A\,(K^G/N)^{\theta_G}N^{\theta_G}$, which itself depends on $\kappa$
+through $K^G=I^G/\delta$ and $Y=\alpha N$ --- hence the nested fixed-point
+iteration described in Section~\ref{sec:steadystate}.
+
+\subsection{Step 2: the investment and consumption shares}
+
+With $\kappa$ (and hence $Y/N\equiv\alpha$) in hand, define the
+steady-state investment share directly from the capital accumulation
+identity $K_{t+1}=(1-\delta)K_t+I_t$: in steady state $K_{t+1}=K_t=K$, so
+$I=\delta K$. Dividing by $Y$,
+\eq{ s_I \equiv \frac{I}{Y} = \frac{\delta K}{Y} = \frac{\delta\kappa N}{\alpha N} = \frac{\delta\kappa}{\alpha}. }
+The resource constraint $Y=C+I+I^G$ (Section~5), divided by $Y$, gives
+$1=s_C+s_I+s_{I^G}$, i.e.
+\eq{ \boxed{s_C = 1-s_I-s_{I^G}.} }
+Transfers $G_T$ never appear in this identity, because they were never in
+the resource constraint to begin with (Section~5) --- this is the formal
+statement of ``transfers are not resource-using.''
+
+\subsection{Step 3: the labor-leisure condition pins down $N$}
+
+Start from the steady-state labor-leisure condition (income tax case),
+\eq{ \theta_L\,\frac{C}{1-N} = (1-\tau)\,w, \qquad w=\theta_N\,\frac{Y}{N}\ \ \text{(Appendix~\ref{app:firm}).} }
+Multiply both sides by $(1-N)$ and divide both sides by $Y$, using
+$C/Y=s_C$:
+\eq{ \theta_L\,s_C = (1-\tau)\,\theta_N\,\frac{1-N}{N}. }
+Multiply both sides by $N$:
+\eq{ \theta_L\,s_C\,N = (1-\tau)\,\theta_N\,(1-N) = (1-\tau)\theta_N - (1-\tau)\theta_N\,N. }
+Collect every term containing $N$ on the left:
+\eq{ N\big[\theta_L\,s_C + (1-\tau)\theta_N\big] = (1-\tau)\theta_N. }
+Divide through:
+\eq{ \boxed{N = \frac{(1-\tau)\,\theta_N}{\theta_L\,s_C+(1-\tau)\,\theta_N}.} }
+The lump-sum case follows identically with $\text{tax\_factor}=1$ in place
+of $(1-\tau)$ throughout (there is no wedge in the lump-sum labor-leisure
+condition to begin with):
+\eq{ \boxed{N = \frac{\theta_N}{\theta_L\,s_C+\theta_N}.} }
+These reproduce exactly the two boxed $N$-equations of
+Section~\ref{sec:steadystate}. Notice the entire derivation only used
+\emph{ratios} ($s_C=C/Y$, $\theta_L,\theta_N,\tau$) --- this is why $N$
+can be solved before $Y$, $C$, or $K$ are known in levels: once $\kappa$
+fixes $\alpha=Y/N$ and $s_C$ (Steps 1--2), $N$ falls out of a single
+algebraic equation, and every level variable is then a trivial multiple of
+$N$:
+\eq{ Y=\alpha N, \qquad K=\kappa N, \qquad C=s_C\,Y, \qquad I=s_I\,Y, \qquad I^G=s_{I^G}\,Y, \qquad G_T=s_{G_T}\,Y. }
+
+\begin{notebox}
+\textbf{Where does $\theta_L$ come from?} $\theta_L$ is not observed
+directly; it is \emph{calibrated} by inverting the boxed $N$-equation at a
+chosen baseline policy and a target hours-worked share $N_{\text{target}}$
+(Baxter \& King's Table~1 strategy). Solving the income-tax $N$-equation
+for $\theta_L$ instead of $N$:
+\eq{ \theta_L = \frac{(1-\tau)\,\theta_N\,(1-N_{\text{target}})}{s_C\,N_{\text{target}}}, }
+and analogously without the $(1-\tau)$ factor under lump-sum. This is
+exactly \texttt{calibrate\_theta\_L} in the code: it is the \emph{same}
+equation as Step 3 above, just solved for the other unknown.
+\end{notebox}
+
+\end{document}
