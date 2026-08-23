@@ -38,15 +38,17 @@ technology (including the Section VI extension for productive public
 capital), the government's budget, the household's optimality conditions,
 the closed-form steady state, the log-linear transition dynamics, and how
 the app's three comparison panels map onto that math. Part II works
-through five cases that are easy to get wrong intuitively --- why a
+through six cases that are easy to get wrong intuitively --- why a
 spending \emph{composition} change is not economically neutral even when
 public capital is unproductive; why the \emph{financing rule} moves the
 economy even when every dollar of tax revenue is handed straight back; why
 several steady-state variables always move by the exact same percentage by
 mathematical necessity, not by coincidence; why the app can lose its
-saddle path altogether at extreme income-tax rates; and why a
-``temporary'' spending increase does not bring the economy back to where
-it started once the underlying policy regime has changed. Part III derives
+saddle path altogether at extreme income-tax rates; why a ``temporary''
+spending increase does not bring the economy back to where it started
+once the underlying policy regime has changed; and why the real interest
+rate shapes fiscal multipliers even though it is a completely separate
+sidebar control. Part III derives
 every first-order condition and steady-state equation from scratch.
 \end{abstract}
 
@@ -618,6 +620,83 @@ you have correctly identified \emph{where it is temporary from} ---
 which reference point the economy actually returns to.
 \end{notebox}
 
+\section{Case F: the real interest rate changes both the economy's scale and the fiscal multiplier}
+\label{sec:caseF}
+
+\textbf{Claim to test:} ``The real interest rate $r$ (sidebar item 3) is
+just the household's discount rate --- it should shift the \emph{level}
+of the economy up or down, but it shouldn't have anything to do with
+\emph{fiscal policy}, since $r$ and $G/Y$ are two completely separate
+sliders.''
+
+\textbf{Why this is wrong.} $r$ enters the capital-Euler condition
+directly, $\kappa=\big(\text{tax\_factor}\cdot\theta_K A/(r+\delta)\big)^{1/(1-\theta_K)}$
+(Section~\ref{sec:steadystate}): a higher $r$ raises the return households
+demand on capital, so the steady-state capital/labor ratio $\kappa$ ---
+and with it $Y$, $K$, $C$, and $w$ --- fall monotonically as $r$ rises,
+\emph{independent of fiscal policy entirely}. That part matches the
+claim. But $\kappa$ also determines the investment share
+$s_I=\delta\kappa/(Y/N)$, which is one of the ``great ratios'' feeding
+directly into the labor-leisure condition and, through it, into
+\emph{every} fiscal-policy multiplier in Panels 2--3. $r$ and $G/Y$ are
+separate sliders, but they are \emph{not} separate channels in the
+model's mechanics.
+
+\begin{casebox}
+\textbf{Numerical example --- levels.} $\theta_N=0.58$, $\delta=10\%$,
+$G/Y=20\%$, all transfers, lump-sum financing, $\theta_G=0$, $\theta_L$
+calibrated once at $r=6.5\%$ and held fixed (Case B's convention, so $N$
+is free to move honestly):
+\begin{center}
+\begin{tabular}{cccccc}
+\toprule
+$r$ & $\kappa$ & $Y$ & $K$ & $N$ & $s_I$ \\
+\midrule
+$1.0\%$  & $10.074$ & $0.6112$ & $2.3335$ & $23.2\%$ & $0.382$ \\
+$6.5\%$  & $5.007$  & $0.3934$ & $1.0014$ & $20.0\%$ & $0.255$ \\
+$12.0\%$ & $3.049$  & $0.2990$ & $0.5709$ & $18.7\%$ & $0.191$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Numerical example --- the long-run multiplier $\Delta Y/\Delta G$}
+(a marginal, permanent $\Delta G/Y=1$pp increase, $\theta_L$ recalibrated
+at each $r$ so $N=20\%$ at the pre-shock baseline, matching Panel 2's own
+convention):
+\begin{center}
+\begin{tabular}{ccc}
+\toprule
+$r$ & Lump-sum, all investment & Income tax, all transfers \\
+\midrule
+$1.0\%$  & $+1.38$ & $-4.57$ \\
+$6.5\%$  & $+1.13$ & $-3.92$ \\
+$12.0\%$ & $+1.04$ & $-3.68$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{casebox}
+
+Both multipliers shrink in \emph{magnitude} as $r$ rises --- the
+lump-sum/investment multiplier drifts down toward $+1$ (the point where
+the extra output exactly equals the extra spending, no supply-side
+amplification left), and the income-tax multiplier's negative effect
+shrinks too. The mechanism is the falling investment share $s_I$: at a
+high $r$, the steady state already sits in a capital-scarce, low-$\kappa$
+region where investment is a smaller share of output to begin with, so
+the same percentage shift in labor supply or capital demand has less
+capital to act on and leverages a smaller output response.
+
+\begin{notebox}
+\textbf{Classroom connection.} This is the model's version of a very
+current policy debate: fiscal multipliers are widely believed to be
+\emph{larger} in low-interest-rate environments (part of the
+post-2008/post-2020 case for stimulus when policy rates were near zero)
+and smaller when rates are high. The table above shows this is not
+just a New Keynesian, zero-lower-bound phenomenon --- it shows up even in
+this flexible-price, perfect-foresight real business cycle model, purely
+through the investment-share channel above.
+\end{notebox}
+
 \section{Summary table}
 
 \begin{center}
@@ -643,7 +722,11 @@ linearized dynamics, not a bug (Case D). \\[4pt]
 Does a ``temporary'' G/Y increase return the economy to the benchmark? &
 \textbf{No} --- only spending reverts; financing/composition/$\theta_G$
 don't, so the economy settles at a third steady state, not the original
-benchmark (Case E). \\
+benchmark (Case E). \\[4pt]
+Does the real interest rate $r$ affect fiscal multipliers, or only levels? &
+\textbf{Both} --- $r$ sets $\kappa$ and hence the investment share $s_I$,
+which feeds directly into every multiplier; higher $r$ shrinks multiplier
+magnitude (Case F). \\
 \bottomrule
 \end{tabular}
 \end{center}
