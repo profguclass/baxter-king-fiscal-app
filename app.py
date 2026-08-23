@@ -174,11 +174,10 @@ if error:
 ss_old, ss_new, path = experiment.ss_old, experiment.ss_new, experiment.path
 
 # --------------------------------------------------------------------------
-# 1a. Fixed benchmark steady state (paper's Table 1 calibration): a genuinely
-# fixed reference point, independent of every sidebar control, so panel 1a
+# Fixed benchmark steady state (paper's Table 1 calibration): a genuinely
+# fixed reference point, independent of every sidebar control, so panel 1
 # below always shows *some* difference when composition, financing, θ_G, or r
-# are moved -- not just when G/Y is. This is deliberately NOT what resets to
-# zero when the G/Y slider returns to 20% (that's panel 1b, below).
+# are moved -- not just when G/Y is.
 # --------------------------------------------------------------------------
 
 BENCH_theta_N, BENCH_delta, BENCH_r = 0.58, 0.10, 0.065
@@ -209,8 +208,6 @@ except Exception as exc:  # noqa: BLE001
     benchmark_error = str(exc)
 
 st.header("1. Comparative steady states")
-
-st.subheader("1a. vs. the paper's fixed benchmark calibration")
 st.write("Exact, closed-form solution of the model's long-run (“great ratios”) "
          "equilibrium: the paper's **fixed benchmark calibration** (θ_N=0.58, δ=10%, "
          "r=6.5%, G/Y=20%, all of it transfers, lump-sum financing, θ_G=0) vs. "
@@ -271,61 +268,6 @@ else:
     fig_bench_bar.update_layout(title="% change from the paper's benchmark calibration",
                                  yaxis_title="% change", height=380, margin=dict(t=50, b=20))
     st.plotly_chart(fig_bench_bar, use_container_width=True)
-
-# --------------------------------------------------------------------------
-# 1b. Isolating the ΔG/Y effect: G/Y=20% baseline vs. current G/Y, holding
-# every OTHER sidebar setting (financing, composition, θ_G, r) fixed at
-# whatever it is currently set to. Reuses ss_old/ss_new from the ΔG/Y
-# experiment above, so resetting the G/Y slider to 20% always drives every
-# number and bar back to exactly zero.
-# --------------------------------------------------------------------------
-
-st.subheader("1b. Isolating the ΔG/Y effect (holding financing/composition/θ_G/r fixed)")
-st.write("Same closed-form solution, but comparing **G/Y = 20%** against **the total "
-         "government spending set in the sidebar (item 5)**, holding financing, "
-         "composition, θ_G, and r fixed at whatever the sidebar currently has them at "
-         "on *both* sides. Resetting item 5 back to 20% always brings every number "
-         "below back to zero, regardless of what item 2/3/4/6 are set to.")
-
-left_label, right_label = f"G/Y = {BENCH_s_G_pct:.0f}% (at current other settings)", "Current G/Y"
-
-ss_table = pd.DataFrame({
-    "Variable": ["Output Y", "Consumption C", "Investment I", "Private capital K",
-                 "Public capital Kᴳ", "Government spending G (total)",
-                 "  Public investment Iᴳ", "  Transfers G_T",
-                 "Labor input N (% of time)", "Real wage w", "Tax rate τ (%)"],
-    left_label: [ss_old.Y, ss_old.C, ss_old.I, ss_old.K, ss_old.KG,
-                 ss_old.G, ss_old.IG, ss_old.GT, ss_old.N * 100,
-                 ss_old.w, ss_old.tau * 100],
-    right_label: [ss_new.Y, ss_new.C, ss_new.I, ss_new.K, ss_new.KG, ss_new.G,
-                  ss_new.IG, ss_new.GT, ss_new.N * 100,
-                  ss_new.w, ss_new.tau * 100],
-})
-both_zero = (ss_table[left_label] == 0) & (ss_table[right_label] == 0)
-ss_table["% change"] = 100 * (ss_table[right_label] / ss_table[left_label].replace(0, np.nan) - 1)
-ss_table.loc[both_zero, "% change"] = 0.0
-
-st.dataframe(
-    ss_table,
-    hide_index=True,
-    use_container_width=True,
-    column_config={
-        left_label: st.column_config.NumberColumn(format="%.6f"),
-        right_label: st.column_config.NumberColumn(format="%.6f"),
-        "% change": st.column_config.NumberColumn(format="%+.2f%%"),
-    },
-)
-
-bar_vars = ["Output Y", "Consumption C", "Investment I", "Private capital K", "Public capital Kᴳ"]
-pct_change = ss_table.set_index("Variable").loc[bar_vars, "% change"]
-bar_heights = pct_change.fillna(0.0).values
-bar_text = [("n/a" if pd.isna(v) else f"{v:+.2f}%") for v in pct_change.values]
-fig_bar = go.Figure(go.Bar(x=bar_vars, y=bar_heights,
-                            marker_color=["#2563eb" if v >= 0 else "#dc2626" for v in bar_heights],
-                            text=bar_text, textposition="outside"))
-fig_bar.update_layout(title=f"% change from the G/Y = {BENCH_s_G_pct:.0f}% baseline (ΔG/Y effect only)",
-                       yaxis_title="% change", height=380, margin=dict(t=50, b=20))
-st.plotly_chart(fig_bar, use_container_width=True)
 
 # --------------------------------------------------------------------------
 # Headline numbers (the ΔG/Y policy-experiment multipliers specifically)
@@ -540,17 +482,14 @@ with st.expander("ℹ️ Methodology notes"):
   purchases" category, since the utility function never assigns households any value
   from government consumption directly -- only Iᴳ enters the economy-wide resource
   constraint Y=C+I+Iᴳ; G_T nets out in aggregate.
-- **Panel 1a** compares the paper's *fixed* benchmark calibration (θ_N=0.58, δ=10%,
+- **Panel 1** compares the paper's *fixed* benchmark calibration (θ_N=0.58, δ=10%,
   r=6.5%, G/Y=20%, all of it transfers, lump-sum financing, θ_G=0) against whatever
   the sidebar is *currently* set to, so every control (financing, composition, θ_G,
   r, G/Y) shows up as a difference there -- including financing alone, since the
-  (1-τ) wedge distorts the household's margins independent of net revenue.
-- **Panel 1b** instead compares G/Y = 20% against the sidebar's current G/Y (item 5),
-  holding every *other* setting fixed at whatever the sidebar currently has them at
-  on *both* sides -- same as the **multipliers and transition dynamics** below. This
-  isolates the effect of the ΔG/Y policy lever specifically: resetting G/Y to 20%
-  always brings Panel 1b back to exactly zero, and the multipliers/transition
-  dynamics need ΔG/Y ≠ 0 to be defined for the same reason.
+  (1-τ) wedge distorts the household's margins independent of net revenue. The
+  **multipliers and transition dynamics** below instead isolate the ΔG/Y policy
+  lever specifically, holding every other setting fixed on both sides of that
+  comparison -- which is why they need ΔG/Y ≠ 0 to be defined.
 - Reported multipliers are close to, but will not exactly reproduce, the point
   estimates in the paper's Tables 2-4, which are built from a closed-form elasticity
   approximation (equation 16/16'); this app instead solves the *exact* nonlinear
