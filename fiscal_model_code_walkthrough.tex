@@ -58,7 +58,7 @@ production $Y_t=AK_t^{\theta_K}(K^G_t)^{\theta_G}N_t^{\theta_N}$. There is no
 separate ``basic purchases'' category (it was removed, since the utility
 function never values government consumption directly): total government
 spending splits into just public investment $I^G$ (resource-using,
-accumulates into $K^G$) and lump-sum transfers $G_T$ (resource-neutral).
+accumulates into $K^G$) and lump-sum transfers $G^T$ (resource-neutral).
 Where the code implements a nontrivial derivation (the log-linearization of
 the household's Euler equation and labor-leisure condition, the
 Blanchard--Kahn/King--Plosser--Rebelo saddle-path solution via
@@ -317,7 +317,7 @@ primitives, the calibrated $\theta_L$, the two-way composition
 ($s_G,s_{IG},s_{GT}$) and the financing flag, the seven
 \texttt{\_supply\_side\_impl} outputs ($\kappa,\alpha,w,q,s_I,s_C$ --- $s_C$
 is added here, not returned by that function itself), and the levels
-($N,L,Y,K,K^G,C,I,G,I^G,G_T$) --- twenty-eight fields in total.
+($N,L,Y,K,K^G,C,I,G,I^G,G^T$) --- twenty-eight fields in total.
 \item[\textbf{L139--L140}] \texttt{as\_dict} returns a shallow copy of the
 attribute dictionary --- used by \texttt{test\_model.py} to print every
 field by name.
@@ -448,8 +448,8 @@ G = IG + GT
 N$ --- converting the per-$N$ ratios from Section~\ref{sec:kgfixedpoint}
 into true levels now that the fixed-point-converged $N$ is known.
 \item[\textbf{L192--L193}] $C=s_C Y$, $I=s_I Y$.
-\item[\textbf{L194--L195}] $I^G=s_{IG}Y$, $G_T=s_{GT}Y$.
-\item[\textbf{L196}] $G=I^G+G_T$, total government spending; by
+\item[\textbf{L194--L195}] $I^G=s_{IG}Y$, $G^T=s_{GT}Y$.
+\item[\textbf{L196}] $G=I^G+G^T$, total government spending; by
 construction $C+I+I^G=(s_C+s_I+s_{IG})Y=Y$ exactly.
 \end{itemize}
 
@@ -484,7 +484,7 @@ policy and once for the counterfactual, holding the composition fractions
 fixed across the two.
 \item[\textbf{L212}] Splits the total by the given fractions.
 \item[\textbf{L213}] Calls Section~\ref{sec:ss}'s \texttt{steady\_state}.
-\item[\textbf{On the household budget and why $G_T$ drops out of the
+\item[\textbf{On the household budget and why $G^T$ drops out of the
 resource constraint.}] The government budget is
 $\tau_tY_t=I^G_t+G^T_t$. The household budget differs by financing rule:
 \eq{

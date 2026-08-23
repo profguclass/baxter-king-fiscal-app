@@ -897,7 +897,7 @@ st.markdown(
     "depends on $N$ directly too — see the code's `_supply_side_impl` and its "
     "caller `steady_state`.) Everything else in the steady state then follows in "
     "closed form, with $s_C=1-s_I-s_{I^G}$ the steady-state consumption "
-    "share (note transfers $G_T$ never reduce $s_C$, since they aren't resource-using) "
+    "share (note transfers $G^T$ never reduce $s_C$, since they aren't resource-using) "
     "and $s_I=\\delta\\kappa/(Y/N)$ the investment share. Under income tax financing:"
 )
 st.latex(r"N = \frac{(1-\tau)\,\theta_N}{\theta_L\,s_C + (1-\tau)\,\theta_N}")

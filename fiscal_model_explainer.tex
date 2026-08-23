@@ -102,11 +102,11 @@ government spending'' term.
 \begin{notebox}
 \textbf{Why is there no ``basic government purchases'' category?} Many
 textbook treatments split $G$ into wasteful ``purchases'' $G_B$, productive
-investment $I^G$, and transfers $G_T$. Here $G_B$ is dropped because it
+investment $I^G$, and transfers $G^T$. Here $G_B$ is dropped because it
 would be economically identical to $I^G$ at $\theta_G=0$: neither enters
 utility, and both use up real resources one-for-one. Keeping a separate
 $G_B$ category would just be relabeling. Total government spending in this
-model is therefore always exactly two pieces: $G = I^G + G_T$.
+model is therefore always exactly two pieces: $G = I^G + G^T$.
 \end{notebox}
 
 \section{Technology}
@@ -363,7 +363,7 @@ app rather than by hand.
 then it shouldn't matter whether government spending is transfers or public
 investment --- both are just money moving around.''
 
-\textbf{Why this is wrong.} Transfers $G_T$ are \emph{not} resource-using:
+\textbf{Why this is wrong.} Transfers $G^T$ are \emph{not} resource-using:
 they cancel out of the resource constraint $Y=C+I+I^G$ entirely. Public
 investment $I^G$ \emph{is} resource-using, with or without $\theta_G>0$ ---
 it is a real claim on output that competes with $C$ and $I$ for the same
@@ -480,14 +480,14 @@ change in a comparison table, that must be a coincidence or a bug.''
 
 \textbf{Why this is wrong.} Three of the model's accounting identities are
 exact, not approximate, and they chain together to force four variables ---
-total government spending $G$, public investment $I^G$, transfers $G_T$,
+total government spending $G$, public investment $I^G$, transfers $G^T$,
 and public capital $K^G$ --- to move by \emph{exactly} the same percentage
 whenever the composition shares and $\delta$ are held fixed between the two
 points being compared:
-\eq{ I^G = f_{I^G}\cdot G, \qquad G_T = f_{G_T}\cdot G \qquad \Longrightarrow \qquad \%\Delta I^G = \%\Delta G_T = \%\Delta G }
+\eq{ I^G = f_{I^G}\cdot G, \qquad G^T = f_{G^T}\cdot G \qquad \Longrightarrow \qquad \%\Delta I^G = \%\Delta G^T = \%\Delta G }
 \eq{ K^G = \frac{I^G}{\delta} \qquad \Longrightarrow \qquad \%\Delta K^G = \%\Delta I^G }
 
-Chaining these: $\%\Delta K^G=\%\Delta I^G=\%\Delta G=\%\Delta G_T$, always,
+Chaining these: $\%\Delta K^G=\%\Delta I^G=\%\Delta G=\%\Delta G^T$, always,
 regardless of what is \emph{driving} the change in $G$ (a change in $\theta_G$,
 $r$, financing, or $G/Y$ itself). The \emph{levels} of these four variables
 can differ enormously --- $K^G$ is typically many times larger than $I^G$,
@@ -785,8 +785,8 @@ Is there \emph{any} setting where changing $G/Y$ does nothing at all? &
 Does switching financing alone matter if all revenue is transferred back? &
 \textbf{Yes} --- the $(1-\tau)$ wedge is on the margin, not on net income
 (Case B). \\[4pt]
-Why do $G$, $I^G$, $G_T$, $K^G$ often show identical \% change? &
-Because $I^G=f_{I^G}G$, $G_T=f_{G_T}G$, and $K^G=I^G/\delta$ are exact
+Why do $G$, $I^G$, $G^T$, $K^G$ often show identical \% change? &
+Because $I^G=f_{I^G}G$, $G^T=f_{G^T}G$, and $K^G=I^G/\delta$ are exact
 identities whenever composition shares and $\delta$ are unchanged (Case C). \\[4pt]
 Why does the app sometimes refuse to compute a transition path? &
 Extreme income-tax rates (with a low investment share) can push the
@@ -1032,7 +1032,7 @@ $I=\delta K$. Dividing by $Y$,
 The resource constraint $Y=C+I+I^G$ (Section~5), divided by $Y$, gives
 $1=s_C+s_I+s_{I^G}$, i.e.
 \eq{ \boxed{s_C = 1-s_I-s_{I^G}.} }
-Transfers $G_T$ never appear in this identity, because they were never in
+Transfers $G^T$ never appear in this identity, because they were never in
 the resource constraint to begin with (Section~5) --- this is the formal
 statement of ``transfers are not resource-using.''
 
@@ -1060,7 +1060,7 @@ can be solved before $Y$, $C$, or $K$ are known in levels: once $\kappa$
 fixes $\alpha=Y/N$ and $s_C$ (Steps 1--2), $N$ falls out of a single
 algebraic equation, and every level variable is then a trivial multiple of
 $N$:
-\eq{ Y=\alpha N, \qquad K=\kappa N, \qquad C=s_C\,Y, \qquad I=s_I\,Y, \qquad I^G=s_{I^G}\,Y, \qquad G_T=s_{G_T}\,Y. }
+\eq{ Y=\alpha N, \qquad K=\kappa N, \qquad C=s_C\,Y, \qquad I=s_I\,Y, \qquad I^G=s_{I^G}\,Y, \qquad G^T=s_{G^T}\,Y. }
 
 \begin{notebox}
 \textbf{Where does $\theta_L$ come from?} $\theta_L$ is not observed
