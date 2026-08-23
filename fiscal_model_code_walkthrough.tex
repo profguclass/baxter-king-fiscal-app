@@ -80,7 +80,7 @@ u_t &= \log C_t + \theta_L\log L_t, \qquad L_t = 1-N_t \tag{preferences}\\
 Y_t &= A\,K_t^{\theta_K}(K^G_t)^{\theta_G}N_t^{\theta_N}, \qquad \theta_K=1-\theta_N \tag{technology}\\
 K_{t+1} &= (1-\delta)K_t+I_t, \qquad K^G_{t+1}=(1-\delta)K^G_t+I^G_t \tag{capital accum.}\\
 Y_t &= C_t+I_t+I^G_t \tag{resource constraint}\\
-\tau_t Y_t &= I^G_t+G_{T,t}, \qquad \tau_t=\frac{I^G_t+G_{T,t}}{Y_t} \tag{government budget}
+\tau_t Y_t &= I^G_t+G^T_t, \qquad \tau_t=\frac{I^G_t+G^T_t}{Y_t} \tag{government budget}
 \end{align}
 with two financing rules for a change in total government spending: both set
 $\tau_t$ by the \emph{same} formula above; they differ only in whether that
@@ -486,11 +486,11 @@ fixed across the two.
 \item[\textbf{L213}] Calls Section~\ref{sec:ss}'s \texttt{steady\_state}.
 \item[\textbf{On the household budget and why $G_T$ drops out of the
 resource constraint.}] The government budget is
-$\tau_tY_t=I^G_t+G_{T,t}$. The household budget differs by financing rule:
+$\tau_tY_t=I^G_t+G^T_t$. The household budget differs by financing rule:
 \eq{
-\text{income\_tax:}\quad C_t+I_t=(1-\tau_t)(w_tN_t+r_tK_t)+G_{T,t}
+\text{income\_tax:}\quad C_t+I_t=(1-\tau_t)(w_tN_t+r_tK_t)+G^T_t
 \qquad
-\text{lump\_sum:}\quad C_t+I_t=w_tN_t+r_tK_t-\tau_tY_t+G_{T,t}.
+\text{lump\_sum:}\quad C_t+I_t=w_tN_t+r_tK_t-\tau_tY_t+G^T_t.
 }
 Combined with $w_tN_t+r_tK_t=Y_t$ and the government budget identity, both
 cases reduce \emph{in the aggregate} to $Y_t=C_t+I_t+I^G_t$ --- transfers

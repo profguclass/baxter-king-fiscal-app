@@ -753,7 +753,7 @@ st.markdown(
 | $K_t$ | Private capital stock |
 | $K^G_t$ | Public (government) capital stock |
 | $I_t,\ I^G_t$ | Private and public investment |
-| $G_{T,t}$ | Lump-sum government transfers |
+| $G^T_t$ | Lump-sum government transfers |
 | $w_t,\ r_t$ | Real wage and real rental rate on capital |
 | $\tau_t$ | Tax rate |
 | $\theta_N,\ \theta_K=1-\theta_N$ | Labor's and capital's shares of income |
@@ -774,7 +774,7 @@ st.markdown(
     "standard King-Plosser-Rebelo preference specification that keeps labor supply "
     "responses well-behaved along a balanced growth path. Notice government spending "
     "does **not** appear here at all -- households derive no direct utility from "
-    "$G_{T,t}$ or $I^G_t$, which is exactly why there is no separate \"basic "
+    "$G^T_t$ or $I^G_t$, which is exactly why there is no separate \"basic "
     "purchases\" term anywhere in this model: a category of spending the household "
     "valued directly would need to enter this utility function, and none does. "
     "$\\theta_L$ is not a free slider in this app; instead it is *calibrated* (see "
@@ -807,7 +807,7 @@ st.subheader("A.5 Resource constraint and the government budget")
 st.latex(r"Y_t = C_t + I_t + I^G_t")
 st.markdown(
     "Output is used for private consumption, private investment, and public "
-    "investment. **Transfers $G_{T,t}$ do not appear here** — a transfer just moves "
+    "investment. **Transfers $G^T_t$ do not appear here** — a transfer just moves "
     "resources from the government's books to a household's pocket without using up "
     "any output, so it nets out of the economy-wide resource constraint even though "
     "it is part of the government's budget below. (There is likewise no \"basic "
@@ -816,7 +816,7 @@ st.markdown(
     "economically indistinguishable from public investment, so this app folds all "
     "resource-using spending into $I^G_t$.)"
 )
-st.latex(r"\tau_t Y_t = I^G_t + G_{T,t}, \qquad \tau_t = \dfrac{I^G_t+G_{T,t}}{Y_t}")
+st.latex(r"\tau_t Y_t = I^G_t + G^T_t, \qquad \tau_t = \dfrac{I^G_t+G^T_t}{Y_t}")
 st.markdown(
     "The government's budget always balances **every period** (no debt in this "
     "model), and the tax rate is *defined* as total government spending divided "
@@ -825,8 +825,8 @@ st.markdown(
     "raised, but whether that revenue collection distorts the household's "
     "decisions, in the household budget constraint below."
 )
-st.latex(r"\text{Income tax:}\quad C_t+I_t = (1-\tau_t)\big(w_tN_t+r_tK_t\big) + G_{T,t}")
-st.latex(r"\text{Lump-sum:}\quad C_t+I_t = w_tN_t+r_tK_t - \tau_tY_t + G_{T,t}")
+st.latex(r"\text{Income tax:}\quad C_t+I_t = (1-\tau_t)\big(w_tN_t+r_tK_t\big) + G^T_t")
+st.latex(r"\text{Lump-sum:}\quad C_t+I_t = w_tN_t+r_tK_t - \tau_tY_t + G^T_t")
 st.markdown(
     "Under **Income tax** financing, $(1-\\tau_t)$ is a proportional wedge that "
     "shrinks the *marginal* return to working and saving — this is what makes the "

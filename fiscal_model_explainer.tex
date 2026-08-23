@@ -70,7 +70,7 @@ $Y_t$ & Output \\
 $K_t$ & Private capital stock \\
 $K^G_t$ & Public (government) capital stock \\
 $I_t,\ I^G_t$ & Private and public investment \\
-$G_{T,t}$ & Lump-sum government transfers \\
+$G^T_t$ & Lump-sum government transfers \\
 $w_t,\ r_t$ & Real wage and real rental rate on capital \\
 $\tau_t$ & Tax rate \\
 $\theta_N,\ \theta_K=1-\theta_N$ & Labor's and capital's shares of income \\
@@ -93,7 +93,7 @@ Households value consumption and leisure, with log utility in each --- the
 standard King--Plosser--Rebelo specification that keeps balanced-growth
 labor supply well behaved. Notice that government spending does \emph{not}
 appear here at all: households get no direct utility from transfers
-$G_{T,t}$ or public investment $I^G_t$. This single fact is the seed of
+$G^T_t$ or public investment $I^G_t$. This single fact is the seed of
 almost everything counterintuitive in Part II --- government spending only
 ever affects the household \emph{indirectly}, through the resource
 constraint and the budget constraint, never through a warm-glow ``I like
@@ -143,7 +143,7 @@ resources from the government's books to a household's pocket without using
 up any output, so it nets out of the economy-wide resource constraint even
 though it is part of the government's budget below.
 
-\eq{ \tau_t Y_t = I^G_t + G_{T,t}, \qquad \tau_t = \frac{I^G_t+G_{T,t}}{Y_t} }
+\eq{ \tau_t Y_t = I^G_t + G^T_t, \qquad \tau_t = \frac{I^G_t+G^T_t}{Y_t} }
 
 The government's budget balances every period (no debt in this model), and
 the tax rate is \emph{defined} as total government spending divided by
@@ -151,8 +151,8 @@ output. This holds identically under \emph{both} financing rules below ---
 what differs between them is not how much revenue is raised, but whether
 raising it distorts the household's decisions.
 
-\eq{ \text{Income tax:}\quad C_t+I_t = (1-\tau_t)\big(w_tN_t+r_tK_t\big) + G_{T,t} }
-\eq{ \text{Lump-sum:}\quad C_t+I_t = w_tN_t+r_tK_t - \tau_tY_t + G_{T,t} }
+\eq{ \text{Income tax:}\quad C_t+I_t = (1-\tau_t)\big(w_tN_t+r_tK_t\big) + G^T_t }
+\eq{ \text{Lump-sum:}\quad C_t+I_t = w_tN_t+r_tK_t - \tau_tY_t + G^T_t }
 
 Under \textbf{income tax} financing, $(1-\tau_t)$ is a proportional wedge
 that shrinks the \emph{marginal} return to working and saving --- this is
@@ -851,11 +851,11 @@ subject to one budget constraint per period and the capital accumulation
 identity $K_{t+1}=(1-\delta)K_t+I_t$, i.e.\ $I_t=K_{t+1}-(1-\delta)K_t$.
 Substituting this into the two budget constraints of
 Section~5 gives, respectively,
-\eq{ \text{Income tax:}\qquad C_t + K_{t+1}-(1-\delta)K_t = (1-\tau_t)\big(w_tN_t+r_tK_t\big)+G_{T,t}, \label{app:bc-it} }
-\eq{ \text{Lump-sum:}\qquad C_t + K_{t+1}-(1-\delta)K_t = w_tN_t+r_tK_t-\tau_tY_t+G_{T,t}. \label{app:bc-ls} }
+\eq{ \text{Income tax:}\qquad C_t + K_{t+1}-(1-\delta)K_t = (1-\tau_t)\big(w_tN_t+r_tK_t\big)+G^T_t, \label{app:bc-it} }
+\eq{ \text{Lump-sum:}\qquad C_t + K_{t+1}-(1-\delta)K_t = w_tN_t+r_tK_t-\tau_tY_t+G^T_t. \label{app:bc-ls} }
 There is no expectation operator anywhere in this problem: the model has
 no stochastic element, so the household is choosing a sequence under
-\textbf{perfect foresight} --- it knows $w_t,r_t,\tau_t,G_{T,t}$ (and hence
+\textbf{perfect foresight} --- it knows $w_t,r_t,\tau_t,G^T_t$ (and hence
 $Y_t$) at every future date along the equilibrium path, given the policy
 being analyzed. Two modeling conventions are worth flagging explicitly:
 \begin{enumerate}[label=(\roman*)]
@@ -881,7 +881,7 @@ form the Lagrangian. Under \textbf{income tax} financing,
 \eq{
 \mathcal{L} = \sum_{t=0}^{\infty}\beta^t\Big\{
   \ln C_t + \theta_L\ln(1-N_t)
-  + \lambda_t\Big[(1-\tau_t)(w_tN_t+r_tK_t)+G_{T,t}-C_t-K_{t+1}+(1-\delta)K_t\Big]
+  + \lambda_t\Big[(1-\tau_t)(w_tN_t+r_tK_t)+G^T_t-C_t-K_{t+1}+(1-\delta)K_t\Big]
 \Big\}.
 }
 
@@ -938,7 +938,7 @@ Lagrangian,
 \eq{
 \mathcal{L} = \sum_{t=0}^{\infty}\beta^t\Big\{
   \ln C_t + \theta_L\ln(1-N_t)
-  + \lambda_t\Big[w_tN_t+r_tK_t-\tau_tY_t+G_{T,t}-C_t-K_{t+1}+(1-\delta)K_t\Big]
+  + \lambda_t\Big[w_tN_t+r_tK_t-\tau_tY_t+G^T_t-C_t-K_{t+1}+(1-\delta)K_t\Big]
 \Big\}.
 }
 Because $\tau_tY_t$ does not depend on $N_t$ or $K_{t+1}$ (point (ii) of
