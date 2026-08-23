@@ -36,13 +36,18 @@ app at \url{https://baxter-king.streamlit.app/} to explore Baxter \& King
 Equilibrium.'' Part I lays out the full model the app solves: preferences,
 technology (including the Section VI extension for productive public
 capital), the government's budget, the household's optimality conditions,
-the closed-form steady state, and the log-linear transition dynamics. Part
-II works through several cases that are easy to get wrong intuitively ---
-why a spending \emph{composition} change is not economically neutral even
-when public capital is unproductive, why the \emph{financing rule} moves the
-economy even when every dollar of tax revenue is handed straight back, and
-why several steady-state variables always move by the exact same percentage
-by mathematical necessity, not by coincidence.
+the closed-form steady state, the log-linear transition dynamics, and how
+the app's three comparison panels map onto that math. Part II works
+through five cases that are easy to get wrong intuitively --- why a
+spending \emph{composition} change is not economically neutral even when
+public capital is unproductive; why the \emph{financing rule} moves the
+economy even when every dollar of tax revenue is handed straight back; why
+several steady-state variables always move by the exact same percentage by
+mathematical necessity, not by coincidence; why the app can lose its
+saddle path altogether at extreme income-tax rates; and why a
+``temporary'' spending increase does not bring the economy back to where
+it started once the underlying policy regime has changed. Part III derives
+every first-order condition and steady-state equation from scratch.
 \end{abstract}
 
 \tableofcontents
@@ -270,21 +275,24 @@ labor supply is free to respond honestly rather than being pinned back to
 the same target by construction), and report percent differences.
 
 Its \emph{time-series} chart applies the log-linear transition machinery
-of this section in a way that goes slightly beyond a simple $\Delta G/Y$
-experiment: it treats the change as a \textbf{permanent, immediate switch
-in regime}. The economy is imagined to start ($t=0$) with the
-\emph{benchmark's} capital stocks $K,K^G$ but the \emph{current settings'}
-structural parameters and policy from that point on. Concretely, the
-transition is linearized around the \emph{destination} steady state (the
-current settings), with the predetermined capital gap set from the origin:
-\eq{ \hat k_0 = \ln\!\frac{K_{\text{benchmark}}}{K_{\text{current}}}, \qquad \hat{k}^G_0 = \ln\!\frac{K^G_{\text{benchmark}}}{K^G_{\text{current}}}, }
-and no further government-spending shock ($\hat g_t=0$ for all $t$), since
-$G/Y$ itself is assumed to jump to its new share immediately at $t=0$ ---
-only capital is predetermined and has to adjust gradually. This is exactly
-the same convention the model already uses for a \emph{permanent}
-$\Delta G/Y$ shock (Panel 2 below); Panel 1 simply allows the destination
-regime's $\theta_G$, financing rule, and $r$ to differ from the origin's
-as well, not just $G/Y$.
+of this section in a way that goes beyond a simple $\Delta G/Y$
+experiment. Financing, composition, $\theta_G$, and $r$ are always treated
+as a \textbf{permanent, immediate switch in regime} --- this model has no
+mechanism for a structural parameter to ``revert,'' so there is no
+sensible ``temporary $\theta_G$'' or ``temporary financing rule.'' The
+economy is imagined to start ($t=0$) with the \emph{benchmark's} capital
+stocks $K,K^G$ but the \emph{current settings'} structural parameters and
+policy from that point on, with the transition linearized around the
+\emph{destination} steady state:
+\eq{ \hat k_0 = \ln\!\frac{K_{\text{benchmark}}}{K_{\text{current}}}, \qquad \hat{k}^G_0 = \ln\!\frac{K^G_{\text{benchmark}}}{K^G_{\text{current}}}. }
+Only total government spending $G$ respects the sidebar's Duration control
+(item 4.2), since a temporary spending change is economically meaningful
+even when the surrounding policy regime is not. If Permanent, $\hat g_t=0$
+for all $t$ ($G/Y$ jumps to the current share immediately and stays there,
+exactly the convention Panel 2 uses for a permanent shock). If Temporary,
+$G/Y$ instead reverts to the \emph{benchmark's} $20\%$ share after the
+chosen number of years --- see Case D below for why this is more subtle
+than it first looks.
 
 \subsection{Panel 2: The Marginal Effects of Government Spendings}
 
@@ -339,10 +347,11 @@ aggregate?''; Panel 3 answers the same question as Panel 2, but
 
 \part{Worked cases}
 
-The three cases below are the ones students most often get wrong by
-intuition alone. Each one follows directly from the equations in Part I;
-none of them requires anything beyond substituting numbers into the
-closed-form steady state of Section~\ref{sec:steadystate}.
+The cases below are the ones students most often get wrong by intuition
+alone. Cases A--C follow directly from the closed-form steady state of
+Section~\ref{sec:steadystate}; Cases D--E require the transition dynamics
+of Section~\ref{sec:panels} as well, and are best explored live in the
+app rather than by hand.
 
 \section{Case A: composition is \emph{not} neutral once $I^G>0$, even at $\theta_G=0$}
 \label{sec:caseA}
@@ -485,6 +494,130 @@ equations, so their percent changes print identically in any comparison
 table. This is a feature of the model's bookkeeping, not evidence of an
 error.
 
+\section{Case D: the model can lose its saddle path at extreme income-tax rates}
+\label{sec:caseD}
+
+\textbf{Claim to test:} ``The app should be able to solve \emph{any}
+combination of sliders --- if it throws an error, that's a bug to file.''
+
+\textbf{Why this is (usually) wrong.} The transition path of
+Section~\ref{sec:panels} requires the reduced-form matrix $M$ (built from
+$\Phi_{kk},\Phi_{kc},\text{coef}_k,\text{coef}_c$) to have exactly one
+eigenvalue inside the unit circle and one outside --- the textbook
+saddle-path (determinacy) condition for one predetermined and one
+jump variable. At sufficiently extreme income-tax rates, this condition
+can genuinely fail: \emph{both} eigenvalues end up outside the unit
+circle, and \textbf{no bounded perfect-foresight path exists} for the
+linearized model. This is not a numerical bug --- it is the honest answer
+that this particular calibration has no well-defined local equilibrium
+dynamics.
+
+\textbf{Mechanism.} Under income-tax financing, a higher $G/Y$ raises
+$\tau$, which lowers the steady-state investment share $s_I$ (more of $Y$
+is taxed away, financing government spending instead of private
+investment). The capital-accumulation coefficient
+$\Phi_{kk}=(1-\delta)+\delta\,y_k/s_I$ \emph{rises} as $s_I$ falls --- a
+smaller investment share means the same percentage swing in output
+translates into a larger swing in the capital/output ratio, amplifying
+the feedback loop between capital and consumption until the ``stable''
+root of $M$ is pushed up through $1$.
+
+\begin{casebox}
+\textbf{Numerical example.} $\theta_N=0.58$, $\delta=10\%$, $r=6.5\%$,
+$\theta_G=0$, all transfers ($I^G/G=0\%$), income-tax financing. The
+stable eigenvalue of $M$ as $G/Y$ rises:
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+$G/Y$ & $\tau$ & $N$ & $s_I$ & Stable eigenvalue of $M$ \\
+\midrule
+$30\%$ & $0.30$ & $17.5\%$ & $0.178$ & $0.924$ \\
+$35\%$ & $0.35$ & $16.2\%$ & $0.165$ & $0.975$ \\
+$36\%$ & $0.36$ & $16.0\%$ & $0.163$ & $0.989$ \\
+$36.5\%$ & $0.365$ & $15.9\%$ & $0.162$ & $0.997$ \\
+$37\%$ & $0.37$ & $15.7\%$ & $0.160$ & $1.006$ \textbf{(fails)} \\
+\bottomrule
+\end{tabular}
+\end{center}
+Between $G/Y=36\%$ and $37\%$, the stable root crosses $1$ and the
+saddle-path condition fails --- with \emph{zero} composition (100\%
+transfers), this is the app's own breaking point. Raising the
+public-investment share pushes the threshold higher, since diverting
+spending into $I^G$ (rather than transfers) partially offsets the
+resource-cost squeeze on $s_I$'s dynamics: the same failure occurs at
+$G/Y\approx 39\%$ at $I^G/G=25\%$, $\approx 43\%$ at $50\%$,
+$\approx 48\%$ at $75\%$, and $\approx 58\%$ at $100\%$.
+\end{casebox}
+
+\begin{notebox}
+\textbf{What the app does about it.} Rather than crashing, the app falls
+back to the two well-defined steady states (Section~\ref{sec:steadystate}
+never requires saddle-path stability --- only the \emph{transition}
+between them does) and shows a scoped warning. The long-run comparisons
+and long-run multiplier ($\Delta Y/\Delta G$ from the two steady states
+directly) remain exact and valid; only the transition-path chart, the
+impact multiplier, and the duration-sensitivity replication are skipped,
+since they need a well-defined path from one steady state to the other.
+There is no single ``safe'' $G/Y$ cutoff to quote in class --- the
+threshold depends on financing \emph{and} composition jointly, as the
+table above shows.
+\end{notebox}
+
+\section{Case E: ``temporary'' does not mean ``back to the benchmark''}
+\label{sec:caseE}
+
+\textbf{Claim to test:} ``If I set Duration to Temporary and shrink $G/Y$
+back to $20\%$ after a few years, Panel 1's chart should return to
+exactly the benchmark, since that's where $G/Y$ started.''
+
+\textbf{Why this is wrong.} Panel 1 compares the sidebar's current
+settings against the paper's \emph{fixed} benchmark (lump-sum, $\theta_G=0$,
+all transfers) --- but financing, composition, and $\theta_G$ are always
+treated as a \emph{permanent} regime switch (Section~\ref{sec:panels};
+there is no mechanism for a tax \emph{rule} to revert). So when $G/Y$
+reverts to $20\%$ under a Temporary shock, the economy does \emph{not}
+return to the benchmark --- it settles at a \emph{third} steady state:
+the \emph{current} regime (e.g., income-tax financing) evaluated at the
+\emph{benchmark's} $20\%$ spending share. Call this $\text{ss}_{\text{reverted}}$.
+
+\begin{casebox}
+\textbf{Numerical example.} $\theta_N=0.58$, $\delta=10\%$, $r=6.5\%$,
+$\theta_G=0$, all transfers, income-tax financing, sidebar $G/Y$ moved to
+$30\%$.
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Steady state & $G/Y$ & Financing & $Y$ \\
+\midrule
+Benchmark ($\text{ss}_{\text{from}}$) & $20\%$ & Lump-sum & $0.3934$ \\
+Current ($\text{ss}_{\text{to}}$) & $30\%$ & Income tax & $0.2081$ \\
+Reverted ($\text{ss}_{\text{reverted}}$) & $20\%$ & Income tax & $0.2639$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Even after $G/Y$ fully reverts to the benchmark's own $20\%$ share,
+output settles $33\%$ \emph{below} the benchmark ($0.2639$ vs.\ $0.3934$)
+--- not because of spending, but because income-tax financing is still in
+effect. Reverting the \emph{level} of spending did nothing to undo the
+\emph{financing rule}.
+\end{casebox}
+
+\begin{notebox}
+\textbf{A numerical-methods postscript.} Naively modeling ``temporary''
+as $G$ reverting to a nonzero constant \emph{forever} (rather than
+exactly $\text{ss}_{\text{reverted}}$'s own level, i.e.\ $\hat g_t=0$
+relative to that reference) breaks the saddle-path solver's implicit
+terminal condition and produces an explosive, diverging path instead of
+convergence to $\text{ss}_{\text{reverted}}$. The fix is to linearize
+around $\text{ss}_{\text{reverted}}$ itself for the post-reversion phase
+--- exactly mirroring how a temporary $\Delta G/Y$ shock in Panel 2
+already linearizes around the \emph{old} steady state rather than the
+new one (Section~\ref{sec:panels}). The lesson generalizes: in a
+perfect-foresight model, a ``temporary'' shock is only well-posed once
+you have correctly identified \emph{where it is temporary from} ---
+which reference point the economy actually returns to.
+\end{notebox}
+
 \section{Summary table}
 
 \begin{center}
@@ -502,7 +635,15 @@ Does switching financing alone matter if all revenue is transferred back? &
 (Case B). \\[4pt]
 Why do $G$, $I^G$, $G_T$, $K^G$ often show identical \% change? &
 Because $I^G=f_{I^G}G$, $G_T=f_{G_T}G$, and $K^G=I^G/\delta$ are exact
-identities whenever composition shares and $\delta$ are unchanged (Case C). \\
+identities whenever composition shares and $\delta$ are unchanged (Case C). \\[4pt]
+Why does the app sometimes refuse to compute a transition path? &
+Extreme income-tax rates (with a low investment share) can push the
+model's saddle path to lose determinacy --- a genuine breakdown of the
+linearized dynamics, not a bug (Case D). \\[4pt]
+Does a ``temporary'' G/Y increase return the economy to the benchmark? &
+\textbf{No} --- only spending reverts; financing/composition/$\theta_G$
+don't, so the economy settles at a third steady state, not the original
+benchmark (Case E). \\
 \bottomrule
 \end{tabular}
 \end{center}
