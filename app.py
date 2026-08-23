@@ -174,101 +174,71 @@ if error:
 ss_old, ss_new, path = experiment.ss_old, experiment.ss_new, experiment.path
 
 # --------------------------------------------------------------------------
-# Fixed benchmark steady state (paper's Table 1 calibration): a genuinely
-# fixed reference point, independent of every sidebar control, so that
-# panel 1 below always shows *some* difference when composition, financing,
-# θ_G, or r are moved -- not just when ΔG/Y is.
-# --------------------------------------------------------------------------
-
-BENCH_theta_N, BENCH_delta, BENCH_r = 0.58, 0.10, 0.065
-BENCH_theta_G, BENCH_s_G, BENCH_N_target = 0.0, 0.20, 0.20
-BENCH_f_IG, BENCH_f_GT = 0.0, 1.0  # benchmark: no public investment, all spending is transfers
-BENCH_distortionary = False
-
-benchmark_error = None
-ss_benchmark = None
-ss_current = None
-try:
-    theta_L_bench = calibrate_theta_L(BENCH_theta_N, BENCH_delta, BENCH_r, 1.0, BENCH_theta_G,
-                                       BENCH_s_G * BENCH_f_IG, BENCH_s_G * BENCH_f_GT,
-                                       BENCH_distortionary, BENCH_N_target)
-    ss_benchmark = steady_state_for_policy(BENCH_theta_N, BENCH_delta, BENCH_r, 1.0, BENCH_theta_G,
-                                            BENCH_s_G, BENCH_f_IG, BENCH_f_GT,
-                                            theta_L_bench, BENCH_distortionary)
-    # Use the SAME (benchmark) theta_L for "current settings" -- if we instead let each
-    # sidebar configuration recalibrate its own theta_L (as run_experiment does for the
-    # ΔG/Y experiment specifically), hours worked would always land back on exactly
-    # N_target by construction, silently masking any real labor-supply response to
-    # composition/financing/θ_G/r and dumping the whole adjustment onto consumption.
-    # Holding theta_L fixed at the benchmark's value lets N move honestly here.
-    ss_current = steady_state_for_policy(theta_N_v, delta_v, r_v, 1.0, theta_G_v,
-                                          s_G_new_v, f_IG_v, f_GT_v,
-                                          theta_L_bench, financing == "income_tax")
-except Exception as exc:  # noqa: BLE001
-    benchmark_error = str(exc)
-
-# --------------------------------------------------------------------------
-# 1. Steady-state / equilibrium comparison: fixed benchmark vs. current settings
+# 1. Steady-state / equilibrium comparison: G/Y=20% baseline vs. current G/Y,
+# holding every OTHER sidebar setting (financing, composition, θ_G, r) fixed
+# at whatever it is currently set to. This reuses ss_old/ss_new from the
+# ΔG/Y experiment above, so resetting the G/Y slider to 20% always drives
+# every number and bar back to exactly zero -- moving composition/financing/
+# θ_G/r alone (with G/Y left at 20%) is correctly a no-op here, since both
+# sides of the comparison share those settings; only ΔG/Y ever shows up.
 # --------------------------------------------------------------------------
 
 st.header("1. Comparative steady states")
 st.write("Exact, closed-form solution of the model's long-run (“great ratios”) "
-         "equilibrium: the paper's **fixed benchmark calibration** vs. **whatever the "
-         "sidebar is currently set to** (including the ΔG/Y experiment, item 5). Moving "
-         "*any* sidebar control -- duration aside -- changes the right-hand column.")
+         "equilibrium: **G/Y = 20% (the paper's benchmark share)** vs. **the total "
+         "government spending set in the sidebar (item 5)**, holding financing, "
+         "composition, θ_G, and r fixed at whatever the sidebar currently has them at. "
+         "Resetting item 5 back to 20% always brings every number below back to zero.")
 if f_IG_pct == 0.0 and financing == "lump_sum":
     st.caption("⚠️ At the current settings (0% public investment, i.e. **all** government "
-               "spending is transfers, under **lump-sum** financing), moving \"Baseline "
+               "spending is transfers, under **lump-sum** financing), changing \"Total "
                "government spending\" only changes G, τ, and Transfers G_T -- Output, "
-               "Consumption, Investment, Capital, and N stay exactly flat. This is a real "
-               "model result, not a bug: a lump-sum tax funding an equal-sized lump-sum "
-               "transfer is a pure wash for the household (no (1-τ) wedge to distort "
-               "anything under lump-sum financing). Raise the public investment share "
-               "(item 6) or switch to Income tax financing (item 2) to see the other "
-               "variables respond.")
+               "Consumption, Investment, Capital, and N stay exactly flat regardless of "
+               "G/Y. This is a real model result, not a bug: a lump-sum tax funding an "
+               "equal-sized lump-sum transfer is a pure wash for the household (no "
+               "(1-τ) wedge to distort anything under lump-sum financing). Raise the "
+               "public investment share (item 6) or switch to Income tax financing "
+               "(item 2) to see the other variables respond.")
 
-if benchmark_error:
-    st.error(f"Could not compute the benchmark steady state: {benchmark_error}")
-else:
-    left_label, right_label = "Paper's benchmark calibration", "Current settings"
+left_label, right_label = f"G/Y = {BENCH_s_G_pct:.0f}% (benchmark share)", "Current G/Y"
 
-    ss_table = pd.DataFrame({
-        "Variable": ["Output Y", "Consumption C", "Investment I", "Private capital K",
-                     "Public capital Kᴳ", "Government spending G (total)",
-                     "  Public investment Iᴳ", "  Transfers G_T",
-                     "Labor input N (% of time)", "Real wage w", "Tax rate τ (%)"],
-        left_label: [ss_benchmark.Y, ss_benchmark.C, ss_benchmark.I, ss_benchmark.K, ss_benchmark.KG,
-                     ss_benchmark.G, ss_benchmark.IG, ss_benchmark.GT, ss_benchmark.N * 100,
-                     ss_benchmark.w, ss_benchmark.tau * 100],
-        right_label: [ss_current.Y, ss_current.C, ss_current.I, ss_current.K, ss_current.KG, ss_current.G,
-                      ss_current.IG, ss_current.GT, ss_current.N * 100,
-                      ss_current.w, ss_current.tau * 100],
-    })
-    both_zero = (ss_table[left_label] == 0) & (ss_table[right_label] == 0)
-    ss_table["% change"] = 100 * (ss_table[right_label] / ss_table[left_label].replace(0, np.nan) - 1)
-    ss_table.loc[both_zero, "% change"] = 0.0
+ss_table = pd.DataFrame({
+    "Variable": ["Output Y", "Consumption C", "Investment I", "Private capital K",
+                 "Public capital Kᴳ", "Government spending G (total)",
+                 "  Public investment Iᴳ", "  Transfers G_T",
+                 "Labor input N (% of time)", "Real wage w", "Tax rate τ (%)"],
+    left_label: [ss_old.Y, ss_old.C, ss_old.I, ss_old.K, ss_old.KG,
+                 ss_old.G, ss_old.IG, ss_old.GT, ss_old.N * 100,
+                 ss_old.w, ss_old.tau * 100],
+    right_label: [ss_new.Y, ss_new.C, ss_new.I, ss_new.K, ss_new.KG, ss_new.G,
+                  ss_new.IG, ss_new.GT, ss_new.N * 100,
+                  ss_new.w, ss_new.tau * 100],
+})
+both_zero = (ss_table[left_label] == 0) & (ss_table[right_label] == 0)
+ss_table["% change"] = 100 * (ss_table[right_label] / ss_table[left_label].replace(0, np.nan) - 1)
+ss_table.loc[both_zero, "% change"] = 0.0
 
-    st.dataframe(
-        ss_table,
-        hide_index=True,
-        use_container_width=True,
-        column_config={
-            left_label: st.column_config.NumberColumn(format="%.6f"),
-            right_label: st.column_config.NumberColumn(format="%.6f"),
-            "% change": st.column_config.NumberColumn(format="%+.2f%%"),
-        },
-    )
+st.dataframe(
+    ss_table,
+    hide_index=True,
+    use_container_width=True,
+    column_config={
+        left_label: st.column_config.NumberColumn(format="%.6f"),
+        right_label: st.column_config.NumberColumn(format="%.6f"),
+        "% change": st.column_config.NumberColumn(format="%+.2f%%"),
+    },
+)
 
-    bar_vars = ["Output Y", "Consumption C", "Investment I", "Private capital K", "Public capital Kᴳ"]
-    pct_change = ss_table.set_index("Variable").loc[bar_vars, "% change"]
-    bar_heights = pct_change.fillna(0.0).values
-    bar_text = [("n/a" if pd.isna(v) else f"{v:+.2f}%") for v in pct_change.values]
-    fig_bar = go.Figure(go.Bar(x=bar_vars, y=bar_heights,
-                                marker_color=["#2563eb" if v >= 0 else "#dc2626" for v in bar_heights],
-                                text=bar_text, textposition="outside"))
-    fig_bar.update_layout(title="% change from the paper's benchmark calibration",
-                           yaxis_title="% change", height=380, margin=dict(t=50, b=20))
-    st.plotly_chart(fig_bar, use_container_width=True)
+bar_vars = ["Output Y", "Consumption C", "Investment I", "Private capital K", "Public capital Kᴳ"]
+pct_change = ss_table.set_index("Variable").loc[bar_vars, "% change"]
+bar_heights = pct_change.fillna(0.0).values
+bar_text = [("n/a" if pd.isna(v) else f"{v:+.2f}%") for v in pct_change.values]
+fig_bar = go.Figure(go.Bar(x=bar_vars, y=bar_heights,
+                            marker_color=["#2563eb" if v >= 0 else "#dc2626" for v in bar_heights],
+                            text=bar_text, textposition="outside"))
+fig_bar.update_layout(title=f"% change from the G/Y = {BENCH_s_G_pct:.0f}% benchmark share",
+                       yaxis_title="% change", height=380, margin=dict(t=50, b=20))
+st.plotly_chart(fig_bar, use_container_width=True)
 
 # --------------------------------------------------------------------------
 # Headline numbers (the ΔG/Y policy-experiment multipliers specifically)
@@ -480,13 +450,13 @@ with st.expander("ℹ️ Methodology notes"):
   purchases" category, since the utility function never assigns households any value
   from government consumption directly -- only Iᴳ enters the economy-wide resource
   constraint Y=C+I+Iᴳ; G_T nets out in aggregate.
-- **Panel 1** compares the paper's *fixed* benchmark calibration (θ_N=0.58, δ=10%,
-  r=6.5%, G/Y=20%, all of it transfers, lump-sum financing, θ_G=0) against whatever
-  the sidebar is *currently* set to, so every control (not just ΔG/Y) shows up as a
-  difference there. The **multipliers and transition dynamics**, by contrast,
-  isolate the effect of the ΔG/Y policy lever specifically, holding every other
-  structural parameter fixed on both sides of that comparison -- which is why they
-  need ΔG/Y ≠ 0 to be defined.
+- **Panel 1** compares G/Y = 20% (the paper's benchmark share) against the
+  sidebar's current G/Y (item 5), holding every *other* setting -- financing,
+  composition, θ_G, r -- fixed at whatever the sidebar currently has them at, same
+  as the **multipliers and transition dynamics** below. This isolates the effect of
+  the ΔG/Y policy lever specifically: resetting G/Y to 20% always brings Panel 1
+  back to exactly zero, and the multipliers/transition dynamics need ΔG/Y ≠ 0 to be
+  defined for the same reason.
 - Reported multipliers are close to, but will not exactly reproduce, the point
   estimates in the paper's Tables 2-4, which are built from a closed-form elasticity
   approximation (equation 16/16'); this app instead solves the *exact* nonlinear
