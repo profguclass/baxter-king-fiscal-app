@@ -38,7 +38,7 @@ technology (including the Section VI extension for productive public
 capital), the government's budget, the household's optimality conditions,
 the closed-form steady state, the log-linear transition dynamics, and how
 the app's three comparison panels map onto that math. Part II works
-through six cases that are easy to get wrong intuitively --- why a
+through seven cases that are easy to get wrong intuitively --- why a
 spending \emph{composition} change is not economically neutral even when
 public capital is unproductive; why the \emph{financing rule} moves the
 economy even when every dollar of tax revenue is handed straight back; why
@@ -46,9 +46,10 @@ several steady-state variables always move by the exact same percentage by
 mathematical necessity, not by coincidence; why the app can lose its
 saddle path altogether at extreme income-tax rates; why a ``temporary''
 spending increase does not bring the economy back to where it started
-once the underlying policy regime has changed; and why the real interest
+once the underlying policy regime has changed; why the real interest
 rate shapes fiscal multipliers even though it is a completely separate
-sidebar control. Part III derives
+sidebar control; and why longer-lasting temporary shocks produce
+\emph{bigger}, not smaller, effects on impact. Part III derives
 every first-order condition and steady-state equation from scratch.
 \end{abstract}
 
@@ -697,6 +698,78 @@ this flexible-price, perfect-foresight real business cycle model, purely
 through the investment-share channel above.
 \end{notebox}
 
+\section{Case G: longer-lasting temporary shocks have \emph{bigger} impact multipliers}
+\label{sec:caseG}
+
+\textbf{Claim to test:} ``A temporary spending increase should have a
+\emph{smaller} effect on impact than a permanent one --- if households
+know the spending burden will end soon, standard consumption-smoothing
+(Barro--Hall) logic says they should barely react today, and react more
+and more as the shock is made longer-lasting and eventually permanent, in
+a smoothly diminishing way that a short 1-year shock should have almost
+\emph{no} impact-year effect at all, essentially zero.''
+
+\textbf{Why the direction is right but the intuition is backwards.} It is
+true that a longer-duration shock produces a bigger impact-year response
+--- but the reason is the \emph{opposite} of simple consumption-smoothing.
+Consumption smoothing is about \emph{demand}: with a short-lived burden,
+households can borrow/save their way through it, so consumption barely
+moves. But the app's multiplier is driven by the \emph{labor-supply}
+response to a negative wealth effect (Case A), and the household's
+Euler equation (Section~\ref{sec:steadystate}) makes today's choices
+forward-looking over the \emph{entire announced path} of $g_t$: a
+government-spending increase that lasts $30$ years is a much
+\emph{larger total burden}, in present-value terms, than the same-sized
+increase lasting $1$ year. A bigger total burden means a bigger
+immediate negative wealth effect, so households work \emph{more}, right
+away --- even though the shock hasn't actually gotten bigger \emph{per
+year}, only \emph{longer}.
+
+\begin{casebox}
+\textbf{Numerical example.} $\theta_N=0.58$, $\delta=10\%$, $r=6.5\%$,
+$\theta_G=0$, lump-sum financing, all public investment ($I^G/G=100\%$,
+so the resource-cost channel of Case A is active), a marginal, temporary
+$\Delta G/Y$ increase of varying duration:
+\begin{center}
+\begin{tabular}{cc}
+\toprule
+Duration & Impact (year-0) multiplier $\Delta Y_0/\Delta G$ \\
+\midrule
+$1$ year & $0.18$ \\
+$2$ years & $0.32$ \\
+$4$ years & $0.52$ \\
+$8$ years & $0.73$ \\
+$15$ years & $0.84$ \\
+$30$ years & $0.87$ \\
+Permanent ($\infty$) & $0.89$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+The long-run multiplier is $1.13$ throughout this table --- it is a
+comparative-statics number defined purely by the \emph{two steady
+states} (Section~\ref{sec:steadystate}), and does not depend on how the
+economy gets from one to the other, so it is the same whether or not the
+shock is ever actually made permanent. The impact multiplier, by
+contrast, rises monotonically with duration and \textbf{asymptotes to,
+but never exceeds, the permanent-shock impact multiplier} ($0.89$): a
+finite-duration shock is always, in present-value terms, a smaller
+total burden than the permanent one.
+\end{casebox}
+
+\begin{notebox}
+\textbf{Where to see this live.} This is exactly the ``How much does the
+\emph{duration} of a temporary shock matter?'' expander under Panel 2
+(Section~\ref{sec:panels}), which plots the impact multiplier against
+duration for whatever financing/composition/$\theta_G$/G/Y the sidebar
+currently has, with the permanent-shock value drawn as a dashed
+reference line. Baxter \& King make exactly this point in their
+Section~IV, calling it the opposite of the ``Barro--Hall'' intuition that
+temporary fiscal shocks should matter less than permanent ones. It is
+the model's own version of ``forward guidance'' in modern monetary
+policy language: how long a policy is \emph{expected to last} changes
+its effect today, independent of its per-period size.
+\end{notebox}
+
 \section{Summary table}
 
 \begin{center}
@@ -726,7 +799,13 @@ benchmark (Case E). \\[4pt]
 Does the real interest rate $r$ affect fiscal multipliers, or only levels? &
 \textbf{Both} --- $r$ sets $\kappa$ and hence the investment share $s_I$,
 which feeds directly into every multiplier; higher $r$ shrinks multiplier
-magnitude (Case F). \\
+magnitude (Case F). \\[4pt]
+Should a longer-lasting temporary shock have a \emph{smaller} impact
+effect (consumption-smoothing intuition)? &
+\textbf{No} --- the \emph{opposite}: longer duration means a bigger
+present-value burden, so the labor-supply response (and hence the
+impact multiplier) rises monotonically with duration, asymptoting to
+the permanent-shock value (Case G). \\
 \bottomrule
 \end{tabular}
 \end{center}
