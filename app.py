@@ -87,34 +87,58 @@ def render_transition_tabs(path, slider_key, caption_commodity, caption_labor, c
         st.caption(caption_financial)
 
 
-def regime_transition_path(ss_from, ss_to, T_sim=200):
-    """Perfect-foresight transition path for a permanent, immediate switch from the
-    structural regime/policy of ss_from to that of ss_to -- used for the "Cumulative
-    Effects" panel's time series, where financing/composition/θ_G/r can all differ at
-    once (not just G/Y, unlike the ΔG/Y-specific experiment). Linearizes around the
-    DESTINATION regime ss_to (the same convention run_experiment uses for a permanent
-    shock), with the ORIGIN's capital stocks as the mismatched initial condition; G
-    itself is treated as jumping to its new share immediately (g_path=0 throughout),
-    since only capital is predetermined -- consumption, labor, and public capital's
-    target level all reflect the new regime from t=0 onward."""
-    k0 = np.log(ss_from.K / ss_to.K)
-    kg0 = np.log(ss_from.KG / ss_to.KG) if (ss_from.KG > 0 and ss_to.KG > 0) else 0.0
-    path = simulate_transition(ss_to, np.zeros(1), k0=k0, kg0=kg0, T_sim=T_sim)
+def regime_transition_path(ss_from, ss_to, ss_reverted=None, permanent=True,
+                            duration_years=4, T_sim=200):
+    """Perfect-foresight transition path for a switch from the structural regime/
+    policy of ss_from to that of ss_to -- used for the "Cumulative Effects" panel's
+    time series, where financing/composition/θ_G/r can all differ at once (not just
+    G/Y, unlike the ΔG/Y-specific experiment). Financing, composition, θ_G, and r are
+    always treated as permanent, immediate switches, since this model has no
+    mechanism for a structural parameter to "revert." Only total government spending
+    G respects the sidebar's Duration control (item 4.2).
+
+    If permanent, this linearizes around ss_to (the destination regime, already at
+    its final G/Y) with g_path=0 throughout -- G jumps to ss_to's share immediately
+    and stays. If temporary, G instead reverts to ss_from's share after
+    duration_years -- but the economy does NOT return to ss_from itself (financing/
+    composition/θ_G don't revert), so the true long-run anchor is a THIRD steady
+    state, ss_reverted (required when permanent=False): ss_to's regime at ss_from's
+    G/Y level. Mirrors exactly how run_experiment's own temporary-shock case
+    linearizes around ss_old (its analogous "reference/target" state) rather than
+    ss_new, with g_path returning to exactly 0 (not a nonzero constant) after
+    duration_years -- a nonzero forcing that never decays back to 0 breaks the
+    saddle-path solver's implicit terminal condition and produces an explosive,
+    non-converging path instead of a transition to a well-defined steady state."""
+    ss_ref = ss_to if permanent else ss_reverted
+    if not permanent and ss_reverted is None:
+        raise ValueError("ss_reverted is required when permanent=False")
+
+    k0 = np.log(ss_from.K / ss_ref.K)
+    kg0 = np.log(ss_from.KG / ss_ref.KG) if (ss_from.KG > 0 and ss_ref.KG > 0) else 0.0
+    if permanent:
+        g_path = np.zeros(1)
+    else:
+        g_level = np.log(ss_to.G / ss_ref.G)
+        g_path = np.concatenate([np.full(duration_years, g_level), np.zeros(1)])
+    path = simulate_transition(ss_ref, g_path, k0=k0, kg0=kg0, T_sim=T_sim)
 
     def shift(field_ref, X_ref, X_old):
         return field_ref + 100.0 * np.log(X_ref / X_old)
 
-    path.Y = shift(path.Y, ss_to.Y, ss_from.Y)
-    path.C = shift(path.C, ss_to.C, ss_from.C)
-    path.I = shift(path.I, ss_to.I, ss_from.I)
-    path.K = shift(path.K, ss_to.K, ss_from.K)
-    if ss_to.KG > 0 and ss_from.KG > 0:
-        path.KG = shift(path.KG, ss_to.KG, ss_from.KG)
+    path.Y = shift(path.Y, ss_ref.Y, ss_from.Y)
+    path.C = shift(path.C, ss_ref.C, ss_from.C)
+    path.I = shift(path.I, ss_ref.I, ss_from.I)
+    path.K = shift(path.K, ss_ref.K, ss_from.K)
+    if ss_ref.KG > 0 and ss_from.KG > 0:
+        path.KG = shift(path.KG, ss_ref.KG, ss_from.KG)
     else:
         path.KG = np.zeros_like(path.KG)
-    path.N = shift(path.N, ss_to.N, ss_from.N)
-    path.W = shift(path.W, ss_to.w, ss_from.w)
-    path.G = np.full_like(path.G, 100.0 * np.log(ss_to.G / ss_from.G))
+    path.N = shift(path.N, ss_ref.N, ss_from.N)
+    path.W = shift(path.W, ss_ref.w, ss_from.w)
+    if permanent:
+        path.G = np.full_like(path.G, 100.0 * np.log(ss_to.G / ss_from.G))
+    else:
+        path.G = shift(path.G, ss_ref.G, ss_from.G)
     return path
 
 # --------------------------------------------------------------------------
@@ -314,6 +338,7 @@ BENCH_distortionary = False
 benchmark_error = None
 ss_benchmark = None
 ss_current = None
+ss_reverted = None
 try:
     theta_L_bench = calibrate_theta_L(BENCH_theta_N, BENCH_delta, BENCH_r, 1.0, BENCH_theta_G,
                                        (BENCH_s_G_pct / 100.0) * BENCH_f_IG,
@@ -330,6 +355,14 @@ try:
     ss_current = steady_state_for_policy(theta_N_v, delta_v, r_v, 1.0, theta_G_v,
                                           s_G_new_v, f_IG_v, f_GT_v,
                                           theta_L_bench, financing == "income_tax")
+    # "Reverted" state for the Cumulative Effects time series under a TEMPORARY
+    # duration: current settings' own regime (financing/composition/θ_G/r), but at
+    # the benchmark's G/Y level -- the true long-run anchor once G/Y reverts, since
+    # financing/composition/θ_G don't revert along with it (see
+    # regime_transition_path's docstring for why this matters).
+    ss_reverted = steady_state_for_policy(theta_N_v, delta_v, r_v, 1.0, theta_G_v,
+                                           s_G_old_v, f_IG_v, f_GT_v,
+                                           theta_L_bench, financing == "income_tax")
 except Exception as exc:  # noqa: BLE001
     benchmark_error = str(exc)
 
@@ -391,11 +424,16 @@ else:
     st.write("Perfect-foresight transition path (log-linearized around the **current "
              "settings**, solved exactly via eigen-decomposition), imagining the "
              "economy starts with the benchmark's capital stocks and this new "
-             "regime -- financing, composition, θ_G, r, and G/Y all at once -- is "
-             "put permanently in place at year 0. All series are % deviations from "
-             "the **benchmark** level.")
+             "regime -- financing, composition, θ_G, and r -- is put permanently in "
+             "place at year 0. **G/Y specifically respects the Duration control "
+             "(item 4.2)**: Permanent means it jumps to the current G/Y and stays; "
+             "Temporary means it reverts to the benchmark's 20% share after the "
+             "chosen number of years (everything else stays at current settings). "
+             "All series are % deviations from the **benchmark** level.")
     try:
-        cumulative_path = regime_transition_path(ss_benchmark, ss_current, T_sim=200)
+        cumulative_path = regime_transition_path(ss_benchmark, ss_current, ss_reverted=ss_reverted,
+                                                  permanent=permanent, duration_years=duration_years,
+                                                  T_sim=200)
         render_transition_tabs(
             cumulative_path, wkey("years_to_show_cumulative"),
             caption_commodity="Compare to Baxter & King Figures 2-4, but here the "
