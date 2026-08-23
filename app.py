@@ -144,16 +144,8 @@ theta_N = 0.58
 delta_pct = 10.0
 N_target_pct = 20.0
 
-# 1. Duration ---------------------------------------------------------------
-st.sidebar.subheader("1. Duration of the change")
-duration_label = st.sidebar.radio("Duration", ["Permanent", "Temporary"], key=wkey("duration_label"))
-permanent = duration_label == "Permanent"
-duration_years = 4
-if not permanent:
-    duration_years = st.sidebar.slider("Duration (years)", 1, 20, 4, 1, key=wkey("duration_years"))
-
-# 2. Financing rule -----------------------------------------------------
-st.sidebar.subheader("2. How is the tax collected?")
+# 1. Financing rule -----------------------------------------------------
+st.sidebar.subheader("1. How is the tax collected?")
 financing_label = st.sidebar.radio(
     "Financing rule",
     ["Lump-sum (tax revenue collected without distorting labor/capital margins)",
@@ -165,8 +157,8 @@ financing_label = st.sidebar.radio(
 )
 financing = "lump_sum" if financing_label.startswith("Lump-sum") else "income_tax"
 
-# 3. theta_G -----------------------------------------------------------------
-st.sidebar.subheader("3. Productive public capital")
+# 2. theta_G -----------------------------------------------------------------
+st.sidebar.subheader("2. Productive public capital")
 theta_G = st.sidebar.slider(
     "Public-capital productivity, θ_G", 0.00, 0.40, 0.00, 0.01,
     help="Y = A·K^θK·(Kᴳ)^θG·N^θN. θG=0 means public investment is a pure resource "
@@ -174,28 +166,36 @@ theta_G = st.sidebar.slider(
     key=wkey("theta_G"),
 )
 
-# 4. Steady-state real interest rate -----------------------------------------
-st.sidebar.subheader("4. Real interest rate")
+# 3. Steady-state real interest rate -----------------------------------------
+st.sidebar.subheader("3. Real interest rate")
 r_pct = st.sidebar.slider("Steady-state real interest rate, r (%/yr)", 1.0, 12.0, 6.5, 0.25, key=wkey("r_pct"))
 
-# 5. Total government spending -----------------------------------------
-st.sidebar.subheader("5. Total government spending")
+# 4. Total government spending -----------------------------------------
+st.sidebar.subheader("4. Total government spending")
 BENCH_s_G_pct = 20.0  # paper's benchmark calibration (Table 1) -- the fixed baseline
                        # every experiment/comparison below is measured against.
 s_G_old_pct = BENCH_s_G_pct
 s_G_new_pct = st.sidebar.slider(
-    "Total government spending, G/Y (%)", 5.0, 40.0, BENCH_s_G_pct, 1.0,
+    "4.1 Total government spending, G/Y (%)", 5.0, 40.0, BENCH_s_G_pct, 1.0,
     help="The paper's benchmark calibration is G/Y = 20% (dashed reference). Move this "
          "slider to change total government spending; every result in this app compares "
-         "against that fixed 20% baseline. Composition shares (item 6) stay fixed.",
+         "against that fixed 20% baseline. Composition shares (item 5) stay fixed.",
     key=wkey("s_G_new_pct"))
 delta_s_G_pct = s_G_new_pct - s_G_old_pct
-st.sidebar.caption(f"Tax rate τ = G/Y always, under both financing rules above (item 2). "
+st.sidebar.caption(f"Tax rate τ = G/Y always, under both financing rules above (item 1). "
                     f"ΔG/Y vs. the {BENCH_s_G_pct:.0f}% benchmark = **{delta_s_G_pct:+.1f}** "
                     f"percentage points.")
 
-# 6. Composition of G ------------------------------------------------------
-st.sidebar.subheader("6. Composition of G")
+# 4.2 Duration of the change, alongside G/Y within the same section, since it
+# only governs how long a ΔG/Y experiment (item 4.1) lasts. -----------------
+duration_label = st.sidebar.radio("4.2 Duration of the change", ["Permanent", "Temporary"], key=wkey("duration_label"))
+permanent = duration_label == "Permanent"
+duration_years = 4
+if not permanent:
+    duration_years = st.sidebar.slider("Duration (years)", 1, 20, 4, 1, key=wkey("duration_years"))
+
+# 5. Composition of G ------------------------------------------------------
+st.sidebar.subheader("5. Composition of G")
 st.sidebar.caption("Government spending has no separate \"basic purchases\" term -- the "
                     "utility function never values government consumption directly -- so "
                     "it splits into just two pieces: public investment Iᴳ and transfers G_T.")
@@ -301,7 +301,7 @@ st.write("Exact, closed-form solution of the model's long-run (“great ratios�
          "r=6.5%, G/Y=20%, all of it transfers, lump-sum financing, θ_G=0) vs. "
          "**whatever the sidebar is currently set to**. Moving *any* sidebar control -- "
          "duration aside -- changes the right-hand column, including financing alone "
-         "(item 2): switching to Income tax distorts the household's margins even if "
+         "(item 1): switching to Income tax distorts the household's margins even if "
          "G/Y and composition don't move. \"Cumulative\" because this bundles the net "
          "effect of *every* control that currently differs from the benchmark, not just "
          "one at a time -- see \"2. Marginal Effects\" below to isolate a single lever.")
@@ -381,11 +381,11 @@ else:
 
 st.header("2. Marginal Effects")
 st.write("Same closed-form solution, but comparing **G/Y = 20%** against **the total "
-         "government spending set in the sidebar (item 5)**, holding financing, "
+         "government spending set in the sidebar (item 4.1)**, holding financing, "
          "composition, θ_G, and r fixed at whatever the sidebar currently has them at "
          "on *both* sides. \"Marginal\" because this isolates the effect of *one* lever "
-         "at a time -- resetting item 5 back to 20% always brings the numbers below back "
-         "to zero, regardless of what items 2/3/4/6 are set to.")
+         "at a time -- resetting item 4.1 back to 20% always brings the numbers below "
+         "back to zero, regardless of what items 1/2/3/5 are set to.")
 
 marg_left_label, marg_right_label = f"G/Y = {BENCH_s_G_pct:.0f}% (at current other settings)", "Current G/Y"
 
@@ -579,14 +579,14 @@ with st.expander("ℹ️ Methodology notes"):
   decouples from the private-capital/consumption saddle path (it follows the exogenous
   spending path directly) so no 3-variable generalization of the eigen-decomposition is
   needed.
-- **Financing (item 2)**: both "Lump-sum" and "Income tax" set τ = G/Y identically.
+- **Financing (item 1)**: both "Lump-sum" and "Income tax" set τ = G/Y identically.
   They differ only in whether that tax enters the household's labor-leisure and
   capital-Euler first-order conditions as a (1-τ) wedge (Income tax) or not (Lump-sum,
   a true non-distorting poll tax for revenue purposes). Because the wedge sits on the
   *margin*, not on net revenue, switching financing alone reshapes the whole steady
-  state even at 100% transfers (item 6) -- there is no "neutral" financing switch the
+  state even at 100% transfers (item 5) -- there is no "neutral" financing switch the
   way there is for a lump-sum-financed, all-transfers *composition* change.
-- **Composition (item 6)**: total government spending G/Y is split into public
+- **Composition (item 5)**: total government spending G/Y is split into public
   investment Iᴳ (accumulates into Kᴳ, productivity-enhancing if θ_G>0) and transfers
   G_T (resource-neutral, returned to households). There is no separate "basic
   purchases" category, since the utility function never assigns households any value
@@ -685,7 +685,7 @@ st.markdown(
     "Both private and public capital accumulate by the standard **perpetual "
     "inventory** rule, and (for simplicity) depreciate at the same rate $\\delta$. "
     "Public capital is financed by public investment $I^G_t$, one of the two "
-    "components of total government spending (sidebar item 6)."
+    "components of total government spending (sidebar item 5)."
 )
 
 st.subheader("A.5 Resource constraint and the government budget")
@@ -706,7 +706,7 @@ st.markdown(
     "The government's budget always balances **every period** (no debt in this "
     "model), and the tax rate is *defined* as total government spending divided "
     "by output. This holds **identically under both financing rules** in the "
-    "sidebar (item 2) — what differs between them is not how much revenue is "
+    "sidebar (item 1) — what differs between them is not how much revenue is "
     "raised, but whether that revenue collection distorts the household's "
     "decisions, in the household budget constraint below."
 )
