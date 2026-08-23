@@ -241,7 +241,9 @@ N_target_v = N_target_pct / 100.0
 f_IG_v, f_GT_v = f_IG_pct / 100.0, f_GT_pct / 100.0
 
 error = None
+path_error = None
 experiment = None
+ss_old = ss_new = path = None
 try:
     experiment = run_experiment(
         theta_N=theta_N_v, delta=delta_v, r=r_v, A=1.0, theta_G=theta_G_v,
@@ -249,8 +251,28 @@ try:
         N_target=N_target_v, financing=financing,
         permanent=permanent, duration_years=duration_years, T_sim=200,
     )
-except Exception as exc:  # noqa: BLE001 -- surface any parameter-infeasibility to the user
-    error = str(exc)
+    ss_old, ss_new, path = experiment.ss_old, experiment.ss_new, experiment.path
+except Exception as exc:  # noqa: BLE001
+    # The transition-path solver can lose saddle-path stability at extreme tax
+    # rates (very high income-tax G/Y, especially with a low investment share)
+    # even though the two steady states themselves are perfectly well-defined --
+    # fall back to the steady states alone, so Panel 1 and Panel 2's comparison
+    # table still work; only the transition-dependent sections (impact
+    # multiplier, transition charts, duration sensitivity, Panel 3's impact
+    # column) show a scoped note below instead of taking down the whole page.
+    try:
+        theta_L_fallback = calibrate_theta_L(theta_N_v, delta_v, r_v, 1.0, theta_G_v,
+                                              s_G_old_v * f_IG_v, s_G_old_v * f_GT_v,
+                                              financing == "income_tax", N_target_v)
+        ss_old = steady_state_for_policy(theta_N_v, delta_v, r_v, 1.0, theta_G_v,
+                                          s_G_old_v, f_IG_v, f_GT_v, theta_L_fallback,
+                                          financing == "income_tax")
+        ss_new = steady_state_for_policy(theta_N_v, delta_v, r_v, 1.0, theta_G_v,
+                                          s_G_new_v, f_IG_v, f_GT_v, theta_L_fallback,
+                                          financing == "income_tax")
+        path_error = str(exc)
+    except Exception as exc2:  # noqa: BLE001 -- steady state itself is infeasible
+        error = str(exc2)
 
 st.title("Fiscal Policy in General Equilibrium")
 st.caption("An interactive replication of Baxter & King (1993, *American Economic Review*) "
@@ -261,7 +283,21 @@ if error:
              "Try a smaller change in G/Y, a lower baseline G/Y, or a different composition.")
     st.stop()
 
-ss_old, ss_new, path = experiment.ss_old, experiment.ss_new, experiment.path
+if path_error:
+    st.warning(
+        f"⚠️ At these settings, the transition-path solver lost **saddle-path "
+        f"stability**: *{path_error}* This happens at sufficiently extreme "
+        f"income-tax rates (especially combined with a low public-investment "
+        f"share), where the linearized model no longer has a well-defined "
+        f"perfect-foresight path -- it is a genuine limit of this local "
+        f"linearization at extreme calibrations, not a bug. The **steady-state "
+        f"comparisons and long-run multipliers below are still exact and "
+        f"valid**; only the transition-path charts, impact multipliers, and "
+        f"duration-sensitivity replication need a stable path and are skipped. "
+        f"Try a lower total government spending (item 4.1), Lump-sum financing "
+        f"(item 1), or a higher public-investment share (item 5) -- all three "
+        f"push the instability threshold higher."
+    )
 
 # --------------------------------------------------------------------------
 # Fixed benchmark steady state (paper's Table 1 calibration): a genuinely
@@ -437,81 +473,93 @@ if abs(delta_s_G_pct) < 1e-9:
             "away from 0 in the sidebar (item 4.1) to see them. Panel 1 above doesn't "
             "need ΔG/Y and is already showing your current settings.")
 else:
+    dG_headline = ss_new.G - ss_old.G
+    multiplier_long_run = (ss_new.Y - ss_old.Y) / dG_headline if abs(dG_headline) > 1e-12 else float("nan")
+
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Long-run output multiplier ΔY/ΔG",
-              f"{experiment.multiplier_long_run:+.2f}")
+    c1.metric("Long-run output multiplier ΔY/ΔG", f"{multiplier_long_run:+.2f}")
     c2.metric("Impact (year-0) output multiplier",
-              f"{experiment.multiplier_impact:+.2f}")
+              f"{experiment.multiplier_impact:+.2f}" if experiment else "n/a (unstable path)")
     c3.metric("Steady-state hours worked N",
               f"{ss_old.N*100:.1f}% → {ss_new.N*100:.1f}%")
     c4.metric("Tax rate τ = G/Y", f"{ss_old.tau*100:.1f}% → {ss_new.tau*100:.1f}%")
 
-    if experiment.multiplier_long_run > 1:
+    if multiplier_long_run > 1:
         st.success(
             f"**A one-dollar permanent increase in government spending raises long-run "
-            f"output by ≈ ${experiment.multiplier_long_run:.2f}.** This exceed-1 "
+            f"output by ≈ ${multiplier_long_run:.2f}.** This exceed-1 "
             f"multiplier is the paper's central, surprising result: it comes from labor "
             f"supply rising (negative wealth effect), and — if θ_G>0 — public investment "
             f"directly raising the productivity of private capital and labor."
         )
-    elif experiment.multiplier_long_run < 0:
+    elif multiplier_long_run < 0:
         st.warning(
-            f"**Output *falls* by ≈ ${-experiment.multiplier_long_run:.2f} for every dollar "
+            f"**Output *falls* by ≈ ${-multiplier_long_run:.2f} for every dollar "
             f"of new spending.** Under Income Tax financing the tax wedge on labor and "
             f"capital income depresses work effort and capital formation by more than the "
             f"direct resource cost of the spending itself."
         )
 
-    st.subheader("Transition path: isolating the ΔG/Y shock")
-    st.write("Perfect-foresight transition path (log-linearized around the relevant steady "
-             "state, solved exactly via eigen-decomposition -- no simulation noise). "
-             "All series are % deviations from the *original* steady state, matching "
-             "Figures 2-4 of the paper.")
-    render_transition_tabs(
-        path, wkey("years_to_show_marginal"),
-        caption_commodity="Compare to Baxter & King Figure 2 (permanent) / Figure 3 "
-            "(temporary war) / Figure 4 (GRH). Watch the investment 'accelerator boom' "
-            "on impact when the shock is permanent and lump-sum financed.",
-        caption_labor="A permanent, lump-sum-financed increase in G is a negative wealth "
-            "effect: households work more and consume less, so labor rises and (with "
-            "capital predetermined) the wage falls on impact.",
-        caption_financial="An unanticipated permanent increase in G should raise short "
-            "real rates on impact -- the model's sharpest, most testable empirical "
-            "prediction (Section III.E of the paper).",
-    )
+    if path is None:
+        st.info("Transition path, impact multipliers, and the duration-sensitivity "
+                 "replication are unavailable at these settings (see the saddle-path "
+                 "note above) -- only long-run, steady-state comparisons are shown.")
+    else:
+        st.subheader("Transition path: isolating the ΔG/Y shock")
+        st.write("Perfect-foresight transition path (log-linearized around the relevant steady "
+                 "state, solved exactly via eigen-decomposition -- no simulation noise). "
+                 "All series are % deviations from the *original* steady state, matching "
+                 "Figures 2-4 of the paper.")
+        render_transition_tabs(
+            path, wkey("years_to_show_marginal"),
+            caption_commodity="Compare to Baxter & King Figure 2 (permanent) / Figure 3 "
+                "(temporary war) / Figure 4 (GRH). Watch the investment 'accelerator boom' "
+                "on impact when the shock is permanent and lump-sum financed.",
+            caption_labor="A permanent, lump-sum-financed increase in G is a negative wealth "
+                "effect: households work more and consume less, so labor rises and (with "
+                "capital predetermined) the wage falls on impact.",
+            caption_financial="An unanticipated permanent increase in G should raise short "
+                "real rates on impact -- the model's sharpest, most testable empirical "
+                "prediction (Section III.E of the paper).",
+        )
 
-    # --------------------------------------------------------------------------
-    # Duration sensitivity (Table 3 style)
-    # --------------------------------------------------------------------------
+        # --------------------------------------------------------------------------
+        # Duration sensitivity (Table 3 style)
+        # --------------------------------------------------------------------------
 
-    with st.expander("\U0001F4CA How much does the *duration* of a temporary shock matter? (Table 3 replication)"):
-        st.write("Holding the financing rule fixed, how does the impact-period output "
-                 "multiplier change as a temporary spending increase is made to last longer?")
-        durations = [1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 30]
-        mults = []
-        for T in durations:
+        with st.expander("\U0001F4CA How much does the *duration* of a temporary shock matter? (Table 3 replication)"):
+            st.write("Holding the financing rule fixed, how does the impact-period output "
+                     "multiplier change as a temporary spending increase is made to last longer?")
+            durations = [1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 30]
+            mults = []
+            for T in durations:
+                try:
+                    e = run_experiment(theta_N_v, delta_v, r_v, 1.0, theta_G_v, s_G_old_v, s_G_new_v,
+                                        f_IG_v, f_GT_v, N_target_v, financing,
+                                        permanent=False, duration_years=T, T_sim=200)
+                    mults.append(e.multiplier_impact)
+                except Exception:
+                    mults.append(np.nan)
             try:
-                e = run_experiment(theta_N_v, delta_v, r_v, 1.0, theta_G_v, s_G_old_v, s_G_new_v,
-                                    f_IG_v, f_GT_v, N_target_v, financing,
-                                    permanent=False, duration_years=T, T_sim=200)
-                mults.append(e.multiplier_impact)
+                perm_e = run_experiment(theta_N_v, delta_v, r_v, 1.0, theta_G_v, s_G_old_v, s_G_new_v,
+                                         f_IG_v, f_GT_v, N_target_v, financing,
+                                         permanent=True, T_sim=200)
+                perm_mult = perm_e.multiplier_impact
             except Exception:
-                mults.append(np.nan)
-        perm_e = run_experiment(theta_N_v, delta_v, r_v, 1.0, theta_G_v, s_G_old_v, s_G_new_v,
-                                 f_IG_v, f_GT_v, N_target_v, financing,
-                                 permanent=True, T_sim=200)
-        fig_dur = go.Figure()
-        fig_dur.add_trace(go.Scatter(x=durations, y=mults, mode="lines+markers", name="Temporary shock"))
-        fig_dur.add_hline(y=perm_e.multiplier_impact, line_dash="dash", line_color="#dc2626",
-                           annotation_text="Permanent-shock impact multiplier")
-        fig_dur.update_layout(title="Impact multiplier vs. duration of the spending increase",
-                               xaxis_title="Duration (years)", yaxis_title="ΔY/ΔG on impact",
-                               height=380)
-        st.plotly_chart(fig_dur, use_container_width=True)
-        st.caption("Baxter & King's key point (Section IV): more *persistent* shocks produce "
-                   "larger short-run multipliers because consumers cannot smooth as easily "
-                   "when higher spending is known to last longer -- the opposite of the "
-                   "Barro-Hall intuition that temporary shocks should have larger effects.")
+                perm_mult = None
+            fig_dur = go.Figure()
+            fig_dur.add_trace(go.Scatter(x=durations, y=mults, mode="lines+markers", name="Temporary shock"))
+            if perm_mult is not None:
+                fig_dur.add_hline(y=perm_mult, line_dash="dash", line_color="#dc2626",
+                                   annotation_text="Permanent-shock impact multiplier")
+            fig_dur.update_layout(title="Impact multiplier vs. duration of the spending increase",
+                                   xaxis_title="Duration (years)", yaxis_title="ΔY/ΔG on impact",
+                                   height=380)
+            st.plotly_chart(fig_dur, use_container_width=True)
+            st.caption("Baxter & King's key point (Section IV): more *persistent* shocks produce "
+                       "larger short-run multipliers because consumers cannot smooth as easily "
+                       "when higher spending is known to last longer -- the opposite of the "
+                       "Barro-Hall intuition that temporary shocks should have larger effects.")
 
     # --------------------------------------------------------------------------
     # 3. Multiplier effects of government spending, by variable
@@ -527,23 +575,29 @@ else:
         "settings."
     )
 
+    if path is None:
+        st.info("Impact multipliers are unavailable at these settings (see the "
+                 "saddle-path note above) -- only long-run multipliers are shown.")
+
     dG_total = ss_new.G - ss_old.G
 
     def _long_run_mult(x_old, x_new):
         return (x_new - x_old) / dG_total if abs(dG_total) > 1e-12 else float("nan")
 
     def _impact_mult(field_path, x_old):
+        if field_path is None:
+            return float("nan")
         # field_path is already expressed as a % deviation from ss_old (see
         # run_experiment's `shift` step), so this recovers the year-0 level directly.
         x0 = x_old * float(np.exp(field_path[0] / 100.0))
         return (x0 - x_old) / dG_total if abs(dG_total) > 1e-12 else float("nan")
 
     mult_vars = [
-        ("Output Y", ss_old.Y, ss_new.Y, path.Y),
-        ("Consumption C", ss_old.C, ss_new.C, path.C),
-        ("Investment I", ss_old.I, ss_new.I, path.I),
-        ("Private capital K", ss_old.K, ss_new.K, path.K),
-        ("Public capital Kᴳ", ss_old.KG, ss_new.KG, path.KG),
+        ("Output Y", ss_old.Y, ss_new.Y, path.Y if path else None),
+        ("Consumption C", ss_old.C, ss_new.C, path.C if path else None),
+        ("Investment I", ss_old.I, ss_new.I, path.I if path else None),
+        ("Private capital K", ss_old.K, ss_new.K, path.K if path else None),
+        ("Public capital Kᴳ", ss_old.KG, ss_new.KG, path.KG if path else None),
     ]
     mult_table = pd.DataFrame({
         "Variable": [name for name, *_ in mult_vars],
