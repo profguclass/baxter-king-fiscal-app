@@ -289,7 +289,7 @@ def _kg_hat_path(delta: float, g_full: np.ndarray, kg0: float) -> np.ndarray:
 def _solve_saddle_path(Phi_kk: float, Phi_kc: float, Phi_kg: float, Phi_k_kg: float,
                         coef_c: float, coef_k: float, coef_g: float, coef_kg: float,
                         k0: float, g_full: np.ndarray, kg_full: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Exact saddle-path solution of the linear rational-expectations system
+    """Exact saddle-path solution of the linear perfect-foresight system
 
         k_hat_{t+1} = Phi_kk*k_hat_t + Phi_kc*c_hat_t + Phi_kg*g_hat_t + Phi_k_kg*kg_hat_t
         c_hat_t     = coef_c*c_hat_{t+1} + coef_k*k_hat_{t+1} + coef_g*g_hat_{t+1}

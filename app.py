@@ -680,17 +680,26 @@ st.markdown(
     "such wedge at all — this single difference is *the* mechanism generating the "
     "app's negative multiplier result under Income tax."
 )
-st.latex(r"\text{Euler, income tax:}\qquad \frac{1}{C_t} = \beta\,E_t\!\left[\frac{1+(1-\tau_{t+1})\,\mathrm{MPK}_{t+1}-\delta}{C_{t+1}}\right]")
-st.latex(r"\text{Euler, lump-sum:}\qquad \frac{1}{C_t} = \beta\,E_t\!\left[\frac{1+\mathrm{MPK}_{t+1}-\delta}{C_{t+1}}\right],\qquad \beta=\frac{1}{1+r}")
+st.latex(r"\text{Euler, income tax:}\qquad \frac{1}{C_t} = \beta\,\frac{1+(1-\tau_{t+1})\,\mathrm{MPK}_{t+1}-\delta}{C_{t+1}}")
+st.latex(r"\text{Euler, lump-sum:}\qquad \frac{1}{C_t} = \beta\,\frac{1+\mathrm{MPK}_{t+1}-\delta}{C_{t+1}},\qquad \beta=\frac{1}{1+r}")
+st.markdown(
+    "There is no expectation operator here: this model has no stochastic element "
+    "(no random shocks to technology, policy, or anything else), so every "
+    "\"future\" variable is simply its known, perfect-foresight value. The "
+    "household is not *guessing* what $C_{t+1}$ or $\\mathrm{MPK}_{t+1}$ will "
+    "be — under a given policy path it *knows*, and the Euler equation is an "
+    "ordinary deterministic difference equation linking today's consumption to "
+    "tomorrow's."
+)
 st.markdown(
     "The household is indifferent between consuming one more unit today and "
     "saving it to consume $(1+\\text{after-tax net return})$ units tomorrow — with "
     "the same $(1-\\tau_{t+1})$ wedge on the capital return under income tax, and "
     "no wedge under lump-sum. This is the equation that makes consumption "
-    "**forward-looking** — its expectation of the *entire future* path of the "
-    "economy is baked into today's consumption choice, which is exactly why the "
-    "transition path (A.8) has to be solved with a saddle-path method rather than "
-    "simulated forward period by period."
+    "**forward-looking** — the *entire future* path of the economy is baked into "
+    "today's consumption choice, which is exactly why the transition path (A.8) "
+    "has to be solved with a saddle-path method rather than simulated forward "
+    "period by period."
 )
 st.markdown(
     r"Prices are just marginal products: the wage $w_t=\theta_N Y_t/N_t$ (marginal "
