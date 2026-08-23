@@ -306,7 +306,7 @@ st.write("Exact, closed-form solution of the model's long-run (“great ratios�
          "(item 1): switching to Income tax distorts the household's margins even if "
          "G/Y and composition don't move. \"Cumulative\" because this bundles the net "
          "effect of *every* control that currently differs from the benchmark, not just "
-         "one at a time -- see \"2. Marginal Effects\" below to isolate a single lever.")
+         "one at a time -- see \"2. The Marginal Effects of Government Spendings\" below to isolate a single lever.")
 
 if benchmark_error:
     st.error(f"Could not compute the benchmark steady state: {benchmark_error}")
@@ -381,7 +381,7 @@ else:
 # back to exactly zero.
 # --------------------------------------------------------------------------
 
-st.header("2. Marginal Effects")
+st.header("2. The Marginal Effects of Government Spendings")
 st.write("Same closed-form solution, but comparing **G/Y = 20%** against **the total "
          "government spending set in the sidebar (item 4.1)**, holding financing, "
          "composition, θ_G, and r fixed at whatever the sidebar currently has them at "
@@ -522,7 +522,7 @@ else:
         "How much does the ΔG/Y change (item 4.1) move each variable, per dollar of "
         r"new spending: $\Delta X/\Delta G$ for $X\in\{Y,C,I,K,K^G\}$, both "
         "**long-run** (comparing the two steady states) and **on impact** (year 0 of "
-        "the transition path above) -- same experiment as \"2. Marginal Effects\", "
+        "the transition path above) -- same experiment as \"2. The Marginal Effects of Government Spendings\", "
         "holding financing, composition, θ_G, and r fixed at the sidebar's current "
         "settings."
     )
@@ -619,7 +619,7 @@ with st.expander("ℹ️ Methodology notes"):
   alone, since the (1-τ) wedge distorts the household's margins independent of net
   revenue. Its transition-path chart imagines the economy starting at the
   benchmark's capital stocks with the current regime put permanently in place.
-- **Panel 2 (Marginal Effects)** instead isolates the ΔG/Y policy lever specifically,
+- **Panel 2 (The Marginal Effects of Government Spendings)** instead isolates the ΔG/Y policy lever specifically,
   holding every other setting (financing, composition, θ_G, r) fixed on both sides
   of the comparison -- resetting G/Y to 20% always brings it back to exactly zero,
   and its multipliers/transition-path chart need ΔG/Y ≠ 0 to be defined for the
@@ -814,7 +814,7 @@ st.latex(r"N = \frac{\theta_N}{\theta_L\,s_C + \theta_N}")
 st.latex(r"Y=\frac{Y}{N}\cdot N,\qquad K=\kappa N,\qquad C=s_C\,Y,\qquad I=s_I\,Y")
 st.markdown(
     "This is the exact equation solved for the **\"1. Cumulative Effects\"** and "
-    "**\"2. Marginal Effects\"** tables above: once $N$ is known, every other "
+    "**\"2. The Marginal Effects of Government Spendings\"** tables above: once $N$ is known, every other "
     "steady-state quantity is a simple multiple of it. This closed-form "
     "solve is why the app never fails to converge the way a numerical "
     "root-finder might."
