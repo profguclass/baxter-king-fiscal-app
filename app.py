@@ -215,16 +215,6 @@ st.write("Exact, closed-form solution of the model's long-run (“great ratios�
          "duration aside -- changes the right-hand column, including financing alone "
          "(item 2): switching to Income tax distorts the household's margins even if "
          "G/Y and composition don't move.")
-if f_IG_pct == 0.0 and financing == "lump_sum":
-    st.caption("⚠️ At the current settings (0% public investment, i.e. **all** government "
-               "spending is transfers, under **lump-sum** financing), moving \"Total "
-               "government spending\" only changes G, τ, and Transfers G_T -- Output, "
-               "Consumption, Investment, Capital, and N stay exactly flat. This is a real "
-               "model result, not a bug: a lump-sum tax funding an equal-sized lump-sum "
-               "transfer is a pure wash for the household (no (1-τ) wedge to distort "
-               "anything under lump-sum financing). Raise the public investment share "
-               "(item 6) or switch to Income tax financing (item 2) to see the other "
-               "variables respond.")
 
 if benchmark_error:
     st.error(f"Could not compute the benchmark steady state: {benchmark_error}")
