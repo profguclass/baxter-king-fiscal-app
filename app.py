@@ -19,7 +19,6 @@ from plotly.subplots import make_subplots
 
 from fiscal_model import (
     calibrate_theta_L,
-    public_investment_long_run,
     run_experiment,
     simulate_transition,
     steady_state_for_policy,
@@ -60,28 +59,31 @@ def render_transition_tabs(path, slider_key, caption_commodity, caption_labor, c
             "Output, consumption, investment, government spending",
             [("Output (Y)", path.Y, "#2563eb"), ("Consumption (C)", path.C, "#16a34a"),
              ("Investment (I)", path.I, "#f59e0b"), ("Government spending (G)", path.G, "#6b7280")],
-            "% deviation from original steady state", yrs), use_container_width=True)
+            "% deviation from original steady state", yrs), use_container_width=True,
+            key=f"{slider_key}_commodity")
         st.caption(caption_commodity)
 
     with tab2:
         st.plotly_chart(line_fig(
             "Labor input and the real wage",
             [("Labor input (N)", path.N, "#2563eb"), ("Real wage (w)", path.W, "#dc2626")],
-            "% deviation from original steady state", yrs), use_container_width=True)
+            "% deviation from original steady state", yrs), use_container_width=True,
+            key=f"{slider_key}_labor")
         st.caption(caption_labor)
 
     with tab3:
         st.plotly_chart(line_fig(
             "Private and public capital stocks",
             [("Private capital (K)", path.K, "#2563eb"), ("Public capital (Kᴳ)", path.KG, "#16a34a")],
-            "% deviation from original steady state", yrs), use_container_width=True)
+            "% deviation from original steady state", yrs), use_container_width=True,
+            key=f"{slider_key}_capital")
         fig_r = go.Figure(go.Scatter(x=yrs, y=path.r_bp[:years_to_show], mode="lines+markers",
                                       line=dict(color="#7c3aed", width=2)))
         fig_r.add_hline(y=0, line_dash="dot", line_color="gray")
         fig_r.update_layout(title="Real interest rate, deviation from steady state",
                              xaxis_title="Years after the change", yaxis_title="Basis points",
                              height=350, margin=dict(t=50, b=20))
-        st.plotly_chart(fig_r, use_container_width=True)
+        st.plotly_chart(fig_r, use_container_width=True, key=f"{slider_key}_rate")
         st.caption(caption_financial)
 
 
@@ -428,12 +430,12 @@ fig_marg_bar.update_layout(title=f"% change from the G/Y = {BENCH_s_G_pct:.0f}% 
 st.plotly_chart(fig_marg_bar, use_container_width=True)
 
 if abs(delta_s_G_pct) < 1e-9:
-    st.info("ΔG/Y is set to 0 — the long-run/impact **multipliers** and the **transition "
-            "dynamics** below need a nonzero spending change to be defined (they isolate "
-            "the effect of *that one* policy lever, holding everything else fixed). Move "
-            "the **ΔG/Y** slider away from 0 in the sidebar to see them. Panel 1 above and "
-            "the Table 4 panel below don't need ΔG/Y and are already showing your current "
-            "settings.")
+    st.info("ΔG/Y is set to 0 — the long-run/impact **multipliers**, the **transition "
+            "dynamics**, and **\"3. Multiplier Effects\"** below all need a nonzero "
+            "spending change to be defined (they isolate the effect of *that one* "
+            "policy lever, holding everything else fixed). Move the **ΔG/Y** slider "
+            "away from 0 in the sidebar (item 4.1) to see them. Panel 1 above doesn't "
+            "need ΔG/Y and is already showing your current settings.")
 else:
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Long-run output multiplier ΔY/ΔG",
@@ -511,56 +513,74 @@ else:
                    "when higher spending is known to last longer -- the opposite of the "
                    "Barro-Hall intuition that temporary shocks should have larger effects.")
 
-# --------------------------------------------------------------------------
-# 3. Table 4 replication: public-capital productivity sensitivity
-# --------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
+    # 3. Multiplier effects of government spending, by variable
+    # --------------------------------------------------------------------------
 
-st.header("3. Productive public investment")
-st.write(
-    "Baxter & King's Section VI, replicating their Table 4 exactly: public investment "
-    "directly raises the productivity of private capital and labor, "
-    r"$Y = A\,K^{\theta_K}\,(K^G)^{\theta_G}\,N^{\theta_N}$. "
-    "Below: the long-run effect of a marginal dollar of public investment on output, "
-    "consumption, and investment, for a grid of θ_G, at the paper's calibration "
-    "(public investment fixed at 5% of output, always lump-sum financed, regardless "
-    "of the sidebar's composition/financing settings elsewhere). Since public "
-    "investment is only *productive* if θ_G>0, the θ_G=0 row reproduces the ordinary "
-    "lump-sum spending multiplier from the headline metric above, not zero. The row "
-    "matching the sidebar's current θ_G is highlighted."
-)
-theta_G_grid = np.array([0.0, 0.01, 0.03, 0.05, 0.08, 0.10, 0.15, 0.20, 0.30, 0.40])
-try:
-    s_other_pub = max(s_G_old_v - 0.05, 0.0)
-    tbl = public_investment_long_run(theta_N_v, delta_v, r_v, 1.0, s_other_pub, N_target_v,
-                                      theta_G_grid, s_IG=0.05)
-    table4 = pd.DataFrame({
-        "θ_G": tbl["theta_G"],
-        "ΔY / ΔIᴳ": tbl["both"],
-        "ΔC / ΔIᴳ": tbl["dC"],
-        "ΔI / ΔIᴳ": tbl["dI"],
+    st.header("3. Multiplier Effects")
+    st.write(
+        "How much does the ΔG/Y change (item 4.1) move each variable, per dollar of "
+        r"new spending: $\Delta X/\Delta G$ for $X\in\{Y,C,I,K,K^G\}$, both "
+        "**long-run** (comparing the two steady states) and **on impact** (year 0 of "
+        "the transition path above) -- same experiment as \"2. Marginal Effects\", "
+        "holding financing, composition, θ_G, and r fixed at the sidebar's current "
+        "settings."
+    )
+
+    dG_total = ss_new.G - ss_old.G
+
+    def _long_run_mult(x_old, x_new):
+        return (x_new - x_old) / dG_total if abs(dG_total) > 1e-12 else float("nan")
+
+    def _impact_mult(field_path, x_old):
+        # field_path is already expressed as a % deviation from ss_old (see
+        # run_experiment's `shift` step), so this recovers the year-0 level directly.
+        x0 = x_old * float(np.exp(field_path[0] / 100.0))
+        return (x0 - x_old) / dG_total if abs(dG_total) > 1e-12 else float("nan")
+
+    mult_vars = [
+        ("Output Y", ss_old.Y, ss_new.Y, path.Y),
+        ("Consumption C", ss_old.C, ss_new.C, path.C),
+        ("Investment I", ss_old.I, ss_new.I, path.I),
+        ("Private capital K", ss_old.K, ss_new.K, path.K),
+        ("Public capital Kᴳ", ss_old.KG, ss_new.KG, path.KG),
+    ]
+    mult_table = pd.DataFrame({
+        "Variable": [name for name, *_ in mult_vars],
+        "Long-run ΔX/ΔG": [_long_run_mult(x_old, x_new) for _, x_old, x_new, _ in mult_vars],
+        "Impact (year-0) ΔX/ΔG": [_impact_mult(fp, x_old) for _, x_old, _, fp in mult_vars],
     })
-    closest_idx = int(np.argmin(np.abs(table4["θ_G"] - theta_G_v)))
-
-    def _highlight_current(row):
-        return ["background-color: rgba(220,38,38,0.25)" if row.name == closest_idx else "" for _ in row]
 
     st.dataframe(
-        table4.style.apply(_highlight_current, axis=1).format({
-            "θ_G": "{:.2f}",
-            "ΔY / ΔIᴳ": "{:.2f}",
-            "ΔC / ΔIᴳ": "{:.2f}",
-            "ΔI / ΔIᴳ": "{:.2f}",
-        }),
+        mult_table,
         hide_index=True,
         use_container_width=True,
+        column_config={
+            "Long-run ΔX/ΔG": st.column_config.NumberColumn(format="%+.2f"),
+            "Impact (year-0) ΔX/ΔG": st.column_config.NumberColumn(format="%+.2f"),
+        },
     )
-    st.caption("At the paper's own benchmark (θ_G ≈ 0.05), the full general-equilibrium "
-               "multiplier is roughly 2.6 times the direct productivity effect alone -- "
-               "most of the payoff comes from the *supply-side response* of private "
-               "labor and capital, not the direct productivity gain, matching Baxter "
-               "& King's Table 4 finding almost exactly.")
-except Exception as exc:  # noqa: BLE001
-    st.error(f"Could not compute Table 4 with the current sidebar settings: {exc}")
+
+    fig_mult = go.Figure()
+    fig_mult.add_trace(go.Bar(name="Long-run", x=mult_table["Variable"],
+                               y=mult_table["Long-run ΔX/ΔG"], marker_color="#2563eb"))
+    fig_mult.add_trace(go.Bar(name="Impact (year-0)", x=mult_table["Variable"],
+                               y=mult_table["Impact (year-0) ΔX/ΔG"], marker_color="#f59e0b"))
+    fig_mult.add_hline(y=0, line_dash="dot", line_color="gray")
+    fig_mult.update_layout(barmode="group", title="Multiplier effects of ΔG/Y, by variable",
+                            yaxis_title="ΔX / ΔG", height=420, margin=dict(t=50, b=20))
+    st.plotly_chart(fig_mult, use_container_width=True)
+
+    st.caption(
+        "A multiplier above +1.00 for Output means a marginal dollar of government "
+        "spending raises long-run output by more than a dollar -- the paper's central, "
+        "surprising result under lump-sum financing (labor supply rises from the "
+        "negative wealth effect, and, if θ_G>0, public investment directly raises "
+        "productivity). Investment's impact multiplier can be large even when its "
+        "long-run multiplier is small: capital 'overshoots' toward the new steady "
+        "state on impact (the accelerator boom, Baxter & King Figure 2), then its net "
+        "long-run change is only what is needed to sustain the new higher K."
+    )
 
 # --------------------------------------------------------------------------
 # Footer / methodology note
@@ -604,6 +624,9 @@ with st.expander("ℹ️ Methodology notes"):
   of the comparison -- resetting G/Y to 20% always brings it back to exactly zero,
   and its multipliers/transition-path chart need ΔG/Y ≠ 0 to be defined for the
   same reason.
+- **Panel 3 (Multiplier Effects)** breaks the same ΔG/Y experiment down by variable
+  (Y, C, I, K, Kᴳ), reporting both the long-run multiplier (from the two steady
+  states) and the impact multiplier (from year 0 of the transition path) for each.
 - Reported multipliers are close to, but will not exactly reproduce, the point
   estimates in the paper's Tables 2-4, which are built from a closed-form elasticity
   approximation (equation 16/16'); this app instead solves the *exact* nonlinear
