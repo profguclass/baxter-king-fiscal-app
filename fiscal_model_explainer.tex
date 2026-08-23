@@ -240,6 +240,103 @@ the present value of \emph{future} government-spending shocks (the
 King--Plosser--Rebelo / Blanchard--Kahn method) rather than simulating
 forward naively, which would blow up numerically.
 
+\section{Reading the app: two comparison panels}
+\label{sec:panels}
+
+Every chart in the app is one of the two objects above: the closed-form
+steady state of Section~\ref{sec:steadystate}, or the log-linear
+transition path of this section. The app presents them as \textbf{three
+panels}. The first two differ only in \emph{which two steady states are
+being compared} --- the underlying mathematics is identical in both; the
+third simply reorganizes Panel 2's own comparison by variable.
+
+\subsection{Panel 1: Cumulative Effects}
+
+Compares the paper's one \emph{fixed} benchmark calibration
+($\theta_N=0.58$, $\delta=10\%$, $r=6.5\%$, $G/Y=20\%$, all of it
+transfers, lump-sum financing, $\theta_G=0$) against \textbf{whatever the
+sidebar is currently set to}. Every control --- financing, composition,
+$\theta_G$, $r$, and $G/Y$ --- can differ between the two columns
+simultaneously, so this panel reports the \emph{net, cumulative} effect of
+everything that has been changed at once. It is the right panel for
+questions like Cases A and B below: ``what does switching to income tax
+financing do to the economy, holding everything else at the benchmark?''
+
+Its steady-state comparison is the direct application of
+Section~\ref{sec:steadystate}: solve for the benchmark's $(\kappa,N,Y,C,\ldots)$
+once, solve for the current settings' $(\kappa,N,Y,C,\ldots)$ once
+(re-using the benchmark's calibrated $\theta_L$ on both sides, so that
+labor supply is free to respond honestly rather than being pinned back to
+the same target by construction), and report percent differences.
+
+Its \emph{time-series} chart applies the log-linear transition machinery
+of this section in a way that goes slightly beyond a simple $\Delta G/Y$
+experiment: it treats the change as a \textbf{permanent, immediate switch
+in regime}. The economy is imagined to start ($t=0$) with the
+\emph{benchmark's} capital stocks $K,K^G$ but the \emph{current settings'}
+structural parameters and policy from that point on. Concretely, the
+transition is linearized around the \emph{destination} steady state (the
+current settings), with the predetermined capital gap set from the origin:
+\eq{ \hat k_0 = \ln\!\frac{K_{\text{benchmark}}}{K_{\text{current}}}, \qquad \hat{k}^G_0 = \ln\!\frac{K^G_{\text{benchmark}}}{K^G_{\text{current}}}, }
+and no further government-spending shock ($\hat g_t=0$ for all $t$), since
+$G/Y$ itself is assumed to jump to its new share immediately at $t=0$ ---
+only capital is predetermined and has to adjust gradually. This is exactly
+the same convention the model already uses for a \emph{permanent}
+$\Delta G/Y$ shock (Panel 2 below); Panel 1 simply allows the destination
+regime's $\theta_G$, financing rule, and $r$ to differ from the origin's
+as well, not just $G/Y$.
+
+\subsection{Panel 2: The Marginal Effects of Government Spendings}
+
+Compares $G/Y=20\%$ against \textbf{the sidebar's current $G/Y$}, holding
+financing, composition, $\theta_G$, and $r$ fixed at whatever the sidebar
+currently has them at, \emph{on both sides} of the comparison. This
+isolates the effect of the $\Delta G/Y$ lever specifically: resetting
+$G/Y$ to $20\%$ always brings this panel back to exactly zero, no matter
+what the other controls are set to. It is the panel behind the app's
+headline multipliers ($\Delta Y/\Delta G$) and the Table-3-style
+duration-sensitivity replication.
+
+Its time series is the ordinary $\Delta G/Y$ transition path: $\hat g_t$ is
+the (possibly temporary) government-spending shock itself, $\hat k_0=0$
+(capital starts exactly at the pre-shock steady state, since only $G/Y$
+changed, nothing structural), and the linearization is around whichever
+steady state the shock is being compared to (the new steady state, for a
+permanent shock; the old one, for a temporary shock).
+
+\subsection{Panel 3: Multiplier Effects}
+
+Takes the \emph{same} pair of steady states as Panel 2 --- $G/Y=20\%$ vs.
+the sidebar's current $G/Y$, everything else held fixed --- and reports,
+for each of $X\in\{Y,C,I,K,K^G\}$, the multiplier
+\eq{ \frac{\Delta X}{\Delta G} = \frac{X_{\text{current}}-X_{20\%}}{G_{\text{current}}-G_{20\%}}, }
+both \textbf{long-run} (using the two steady-state levels directly) and
+\textbf{on impact} (using each variable's year-0 level along Panel 2's own
+transition path in place of $X_{\text{current}}$). No new steady state or
+transition path is computed here --- it is purely Panel 2's comparison,
+reorganized by variable instead of collapsed into a single headline
+number. A multiplier above $+1.00$ for output means a marginal dollar of
+spending raises long-run output by \emph{more} than a dollar, the paper's
+central result; investment's impact multiplier can be large even when its
+long-run multiplier is small, since capital only needs to move once to
+reach the new steady state (the ``accelerator boom'').
+
+\begin{notebox}
+\textbf{Why not just one panel?} A single ``current settings vs.\ some
+baseline'' panel cannot serve every purpose at once. If the baseline
+tracks the current settings on everything except $G/Y$ (Panel 2's
+convention), then changing financing \emph{alone} --- with $G/Y$ left at
+$20\%$ --- shows up as \emph{no change at all}, since both sides of the
+comparison would use the same financing rule. If instead the baseline is
+the one truly fixed benchmark (Panel 1's convention), resetting $G/Y$ to
+$20\%$ will not zero out the panel unless every other control also happens
+to match the benchmark. Splitting the two eliminates this ambiguity:
+Panel 1 answers ``how far is the economy, in total, from the textbook
+case?''; Panel 2 answers ``what, specifically, is this one lever doing, in
+aggregate?''; Panel 3 answers the same question as Panel 2, but
+``\ldots and how does that break down variable by variable?''
+\end{notebox}
+
 \part{Worked cases}
 
 The three cases below are the ones students most often get wrong by
@@ -267,7 +364,9 @@ productivity.
 \begin{casebox}
 \textbf{Numerical example.} $\theta_N=0.58$, $\delta=10\%$, $r=6.5\%$,
 $G/Y=20\%$, $\theta_G=0$, lump-sum financing, $\theta_L$ calibrated once at
-$I^G/G=0\%$ so that $N=20.0\%$ there.
+$I^G/G=0\%$ so that $N=20.0\%$ there. This is exactly what \textbf{Panel 1
+(Cumulative Effects)}, Section~\ref{sec:panels}, shows if only the
+composition slider (item 5) is moved away from the benchmark's $I^G/G=0\%$.
 
 \begin{center}
 \begin{tabular}{ccccc}
@@ -284,9 +383,11 @@ $100\%$ (all investment) & $25.5\%$ & $0.5009$ & $0.2732$ & $0.1002$ \\
 
 $N$, $Y$, and $I$ all rise as the investment share rises, purely from the
 resource-cost channel --- \emph{before} any productivity effect is even
-switched on. This is exactly why the app's own Table 4 panel documents that
-its $\theta_G=0$ row reproduces the \emph{ordinary} lump-sum
-government-purchases multiplier ($\approx 1.16$), not zero.
+switched on. This is exactly why, at $\theta_G=0$, \textbf{Panel 2} still
+reports a nonzero headline multiplier $\Delta Y/\Delta G$ for an ordinary,
+unproductive spending increase ($\approx 1.1$--$1.2$ under lump-sum
+financing) --- $\theta_G=0$ turns off the \emph{productivity} channel, not
+the resource-cost channel that drives this table.
 
 \begin{notebox}
 \textbf{The one truly neutral corner case.} If (and only if) financing is
@@ -324,7 +425,11 @@ labor-leisure condition.
 $G/Y=20\%$, all of it transfers ($I^G/G=0\%$), $\theta_G=0$. $\theta_L$ is
 calibrated \emph{separately} under each financing rule so that $N=20.0\%$ in
 both cases --- this isolates the capital-stock channel from any mechanical
-change in hours.
+change in hours. \textbf{Panel 1 (Cumulative Effects)}, Section~\ref{sec:panels},
+shows this same financing switch, but holds $\theta_L$ fixed at the
+benchmark's calibrated value throughout, so $N$ moves too under income tax
+(it does not recalibrate back to $20.0\%$) --- the mechanism is identical,
+only this table's presentation isolates it more cleanly.
 
 \begin{center}
 \begin{tabular}{cccccc}
