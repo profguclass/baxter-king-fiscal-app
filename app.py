@@ -76,6 +76,13 @@ financing_label = st.sidebar.radio(
     key=wkey("financing_label"),
 )
 financing = "lump_sum" if financing_label.startswith("Lump-sum") else "income_tax"
+st.sidebar.caption(
+    "Switching this alone moves the whole steady state, even at 100% transfers "
+    "(item 6) -- the distortion comes from the **(1-τ) wedge on the margin**, not "
+    "from where the revenue ends up. E.g. at the paper's benchmark (G/Y=20%, all "
+    "transfers, θ_G=0), income tax vs. lump-sum cuts Y by ≈15% and K by ≈32%, with "
+    "N unchanged (calibration pins hours worked in both cases)."
+)
 
 # 3. theta_G -----------------------------------------------------------------
 st.sidebar.subheader("3. Productive public capital")
@@ -443,7 +450,10 @@ with st.expander("ℹ️ Methodology notes"):
 - **Financing (item 2)**: both "Lump-sum" and "Income tax" set τ = G/Y identically.
   They differ only in whether that tax enters the household's labor-leisure and
   capital-Euler first-order conditions as a (1-τ) wedge (Income tax) or not (Lump-sum,
-  a true non-distorting poll tax for revenue purposes).
+  a true non-distorting poll tax for revenue purposes). Because the wedge sits on the
+  *margin*, not on net revenue, switching financing alone reshapes the whole steady
+  state even at 100% transfers (item 6) -- there is no "neutral" financing switch the
+  way there is for a lump-sum-financed, all-transfers *composition* change.
 - **Composition (item 6)**: total government spending G/Y is split into public
   investment Iᴳ (accumulates into Kᴳ, productivity-enhancing if θ_G>0) and transfers
   G_T (resource-neutral, returned to households). There is no separate "basic
