@@ -90,22 +90,21 @@ theta_G = st.sidebar.slider(
 st.sidebar.subheader("4. Real interest rate")
 r_pct = st.sidebar.slider("Steady-state real interest rate, r (%/yr)", 1.0, 12.0, 6.5, 0.25, key=wkey("r_pct"))
 
-# 5. Baseline fiscal policy: size and change ------------------------
-st.sidebar.subheader("5. Baseline government spending")
-s_G_old_pct = st.sidebar.slider("Baseline total government spending, G/Y (%)", 5.0, 40.0, 20.0, 1.0, key=wkey("s_G_old_pct"))
-st.sidebar.caption("Tax rate τ = G/Y always, under both financing rules above (item 2).")
-
-delta_s_G_pct = st.sidebar.slider(
-    "Change in government spending, ΔG/Y (percentage points)", -10.0, 15.0, 0.0, 0.5,
-    help="Expressed relative to the baseline G/Y set above. Defaults to 0 (no policy "
-         "change yet) -- move this slider to run an experiment. Composition shares "
-         "(item 6) stay fixed.",
-    key=wkey("delta_s_G_pct"))
-s_G_new_pct_raw = s_G_old_pct + delta_s_G_pct
-s_G_new_pct = min(max(s_G_new_pct_raw, 1.0), 48.0)
-if s_G_new_pct != s_G_new_pct_raw:
-    st.sidebar.warning(f"New G/Y clamped to {s_G_new_pct:.1f}% (must stay between 1% and 48%).")
-st.sidebar.caption(f"New G/Y = {s_G_old_pct:.1f}% + {delta_s_G_pct:+.1f} = **{s_G_new_pct:.1f}%**")
+# 5. Total government spending -----------------------------------------
+st.sidebar.subheader("5. Total government spending")
+BENCH_s_G_pct = 20.0  # paper's benchmark calibration (Table 1) -- the fixed baseline
+                       # every experiment/comparison below is measured against.
+s_G_old_pct = BENCH_s_G_pct
+s_G_new_pct = st.sidebar.slider(
+    "Total government spending, G/Y (%)", 5.0, 40.0, BENCH_s_G_pct, 1.0,
+    help="The paper's benchmark calibration is G/Y = 20% (dashed reference). Move this "
+         "slider to change total government spending; every result in this app compares "
+         "against that fixed 20% baseline. Composition shares (item 6) stay fixed.",
+    key=wkey("s_G_new_pct"))
+delta_s_G_pct = s_G_new_pct - s_G_old_pct
+st.sidebar.caption(f"Tax rate τ = G/Y always, under both financing rules above (item 2). "
+                    f"ΔG/Y vs. the {BENCH_s_G_pct:.0f}% benchmark = **{delta_s_G_pct:+.1f}** "
+                    f"percentage points.")
 
 # 6. Composition of G ------------------------------------------------------
 st.sidebar.subheader("6. Composition of G")
@@ -638,17 +637,24 @@ st.markdown(
 
 st.subheader("A.7 Steady state (closed form)")
 st.markdown(
-    "Because the production function has constant returns to scale in $(K,N)$, "
-    "the capital/labor ratio $\\kappa=K/N$ is pinned down by the capital-Euler "
-    "condition **alone**, independent of labor supply. Under income tax financing:"
+    "Because the production function has constant returns to scale in $(K,N)$ "
+    "*alone* ($\\theta_K+\\theta_N=1$), dividing the technology equation through by "
+    "$N$ leaves the capital/labor ratio $\\kappa=K/N$ pinned down by a capital-Euler "
+    "condition written in *per-worker* public capital $K^G/N$ — **but with an "
+    "extra $N^{\\theta_G}$ factor that does not cancel**, since $K^G$ is itself funded "
+    "as a share of *aggregate* output $Y=(Y/N)\\cdot N$, not of output per worker. "
+    "Under income tax financing:"
 )
-st.latex(r"(1-\tau)\,\theta_K\,A\,(K^G/N)^{\theta_G}\,\kappa^{\theta_K-1} = r+\delta")
+st.latex(r"(1-\tau)\,\theta_K\,A\,(K^G/N)^{\theta_G}\,N^{\theta_G}\,\kappa^{\theta_K-1} = r+\delta")
 st.markdown("and under lump-sum financing (no tax wedge at all):")
-st.latex(r"\theta_K\,A\,(K^G/N)^{\theta_G}\,\kappa^{\theta_K-1} = r+\delta")
+st.latex(r"\theta_K\,A\,(K^G/N)^{\theta_G}\,N^{\theta_G}\,\kappa^{\theta_K-1} = r+\delta")
 st.markdown(
-    "(When $\\theta_G>0$ this is solved by a quick fixed-point iteration, since "
-    "$K^G=I^G/\\delta$ itself depends on output — see the code's "
-    "`_supply_side_impl`.) Everything else in the steady state then follows in "
+    "(When $\\theta_G=0$ the $N^{\\theta_G}$ factor is just 1 and this collapses to "
+    "the familiar CRS-in-$(K,N)$ formula. When $\\theta_G>0$, this is solved by a "
+    "fixed-point iteration *nested inside* another fixed-point iteration on $N$ "
+    "itself — since $K^G=I^G/\\delta$ depends on output, and now the equation above "
+    "depends on $N$ directly too — see the code's `_supply_side_impl` and its "
+    "caller `steady_state`.) Everything else in the steady state then follows in "
     "closed form, with $s_C=1-s_I-s_{I^G}$ the steady-state consumption "
     "share (note transfers $G_T$ never reduce $s_C$, since they aren't resource-using) "
     "and $s_I=\\delta\\kappa/(Y/N)$ the investment share. Under income tax financing:"

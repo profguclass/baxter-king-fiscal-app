@@ -60,7 +60,7 @@ Financing = Literal["lump_sum", "income_tax"]
 # --------------------------------------------------------------------------
 
 def _supply_side_impl(theta_N: float, delta: float, r: float, A: float, tau: float,
-                       theta_G: float, s_IG: float, distortionary: bool) -> dict:
+                       theta_G: float, s_IG: float, distortionary: bool, N: float) -> dict:
     theta_K = 1.0 - theta_N
     tax_factor = (1.0 - tau) if distortionary else 1.0
     if tax_factor <= 0:
@@ -70,17 +70,20 @@ def _supply_side_impl(theta_N: float, delta: float, r: float, A: float, tau: flo
     alpha = A * kappa ** theta_K  # will be rescaled by KG^theta_G below
     KG = 0.0
     if theta_G > 0 and s_IG > 0:
-        # Fixed point on alpha (=Y/N): KG = s_IG*Y/delta = s_IG*alpha*N/delta, but since
-        # everything here is per-unit-of-N (N cancels out of the K^theta_K*KG^theta_G
-        # combination's response to kappa), iterate directly on alpha with N=1 normalization
-        # for the KG/Y ratio, which is scale-invariant in N.
-        alpha_ppN = A * kappa ** theta_K  # Y/N ignoring KG, will multiply by KG^theta_G
+        # Fixed point on alpha (=Y/N): KG = s_IG*Y/delta = s_IG*alpha*N/delta. Working in
+        # per-N terms (kappa=K/N, KG_ppN=KG/N), dividing the technology Y=A*K^thetaK*KG^thetaG*N^thetaN
+        # by N gives alpha=A*kappa^thetaK*KG^thetaG*N^(thetaK+thetaG+thetaN-1)
+        # =A*kappa^thetaK*KG_ppN^thetaG*N^thetaG (thetaK+thetaN=1 cancels, but the thetaG
+        # exponent on N does NOT cancel -- KG is funded as a share of AGGREGATE output,
+        # which scales with N, so an explicit N^thetaG factor is required here).
+        alpha_ppN = A * kappa ** theta_K  # Y/N ignoring KG, will multiply by KG_ppN^theta_G * N^theta_G
         alpha_guess = alpha_ppN
+        N_pow = N ** theta_G
         for _ in range(200):
             KG_ppN = s_IG * alpha_guess / delta  # KG per unit of N
-            base = (tax_factor * theta_K * A * KG_ppN ** theta_G) / (r + delta)
+            base = (tax_factor * theta_K * A * KG_ppN ** theta_G * N_pow) / (r + delta)
             kappa = base ** (1.0 / (1.0 - theta_K))
-            alpha_new = A * kappa ** theta_K * KG_ppN ** theta_G
+            alpha_new = A * kappa ** theta_K * KG_ppN ** theta_G * N_pow
             if abs(alpha_new - alpha_guess) < 1e-12:
                 alpha_guess = alpha_new
                 break
@@ -143,11 +146,11 @@ def calibrate_theta_L(theta_N: float, delta: float, r: float, A: float, theta_G:
     """Choose theta_L (weight on leisure) so that steady-state labor input equals
     N_target, given the other parameters (Table 1 calibration strategy)."""
     tau = s_IG + s_GT
-    supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, distortionary)
+    N = N_target
+    supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, distortionary, N)
     s_C = 1.0 - supply["s_I"] - s_IG
     if s_C <= 0:
         raise ValueError("Government share too large: steady-state consumption share <= 0.")
-    N = N_target
     theta_L = supply["tax_factor"] * theta_N * (1.0 - N) / (s_C * N)
     if theta_L <= 0:
         raise ValueError("Implied theta_L <= 0; adjust N_target or the tax/spending settings.")
@@ -161,16 +164,26 @@ def steady_state(theta_N: float, delta: float, r: float, A: float, theta_G: floa
     composition (s_IG, s_GT).  tau = s_IG+s_GT always."""
     tau = s_IG + s_GT
     s_G = tau
-    supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, distortionary)
-    s_I = supply["s_I"]
-    s_C = 1.0 - s_I - s_IG
-    if s_C <= 0:
-        raise ValueError("Government share too large: steady-state consumption share <= 0.")
-
-    tax_factor = supply["tax_factor"]
-    N = tax_factor * theta_N / (theta_L * s_C + tax_factor * theta_N)
-    if not (0 < N < 1):
-        raise ValueError(f"Implied labor supply N={N:.3f} is outside (0,1).")
+    # Outer fixed point on N: when theta_G>0 and s_IG>0, the supply side (kappa,
+    # alpha, KG) itself depends on N (see _supply_side_impl), while N in turn
+    # depends on the supply side's implied consumption share s_C. When theta_G=0
+    # or s_IG=0 this converges in a single pass, since supply doesn't depend on N.
+    N = 0.3
+    supply = None
+    for _ in range(200):
+        supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, distortionary, N)
+        s_I = supply["s_I"]
+        s_C = 1.0 - s_I - s_IG
+        if s_C <= 0:
+            raise ValueError("Government share too large: steady-state consumption share <= 0.")
+        tax_factor = supply["tax_factor"]
+        N_new = tax_factor * theta_N / (theta_L * s_C + tax_factor * theta_N)
+        if not (0 < N_new < 1):
+            raise ValueError(f"Implied labor supply N={N_new:.3f} is outside (0,1).")
+        if abs(N_new - N) < 1e-12:
+            N = N_new
+            break
+        N = N_new
     L = 1.0 - N
 
     Y = supply["alpha"] * N
@@ -518,7 +531,7 @@ def public_investment_long_run(theta_N: float, delta: float, r: float, A: float,
     # Calibrate theta_L once, at theta_G=0, so labor hits N_target under the
     # baseline (s_IG + s_other) total government share.
     tau0 = s_IG + s_other
-    supply0 = _supply_side_impl(theta_N, delta, r, A, tau0, 0.0, s_IG, False)
+    supply0 = _supply_side_impl(theta_N, delta, r, A, tau0, 0.0, s_IG, False, N_target)
     s_C0 = 1.0 - supply0["s_I"] - s_IG - s_other
     if s_C0 <= 0:
         raise ValueError("Government share too large: steady-state consumption share <= 0.")
@@ -552,12 +565,19 @@ def _public_capital_output(theta_N, theta_K, delta, r, A, s_other, theta_L, thet
     always-unproductive, resource-using government spending held fixed (see
     `public_investment_long_run`'s docstring)."""
     tau = s_IG + s_other
-    supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, False)
-    s_I = supply["s_I"]
-    s_C = 1.0 - s_I - s_IG - s_other
-    if s_C <= 0:
-        s_C = 1e-6
-    N = theta_N / (theta_L * s_C + theta_N)
+    N = 0.3
+    supply = None
+    for _ in range(200):
+        supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, False, N)
+        s_I = supply["s_I"]
+        s_C = 1.0 - s_I - s_IG - s_other
+        if s_C <= 0:
+            s_C = 1e-6
+        N_new = theta_N / (theta_L * s_C + theta_N)
+        if abs(N_new - N) < 1e-12:
+            N = N_new
+            break
+        N = N_new
     Y = supply["alpha"] * N
     K = supply["kappa"] * N
     KG = supply["KG"] * N
