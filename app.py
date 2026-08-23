@@ -224,18 +224,19 @@ if not permanent:
 st.sidebar.subheader("5. Composition of G")
 st.sidebar.caption("Government spending has no separate \"basic purchases\" term -- the "
                     "utility function never values government consumption directly -- so "
-                    "it splits into just two pieces: public investment Iᴳ and transfers G_T.")
+                    "it splits into just two pieces: public investment Iᴳ and transfers Gᵀ.")
 f_IG_pct = st.sidebar.slider("Public investment share of G, Iᴳ/G (%)", 0.0, 100.0, 0.0, 5.0, key=wkey("f_IG_pct"))
 f_GT_pct = 100.0 - f_IG_pct
-st.sidebar.caption(f"⇒ Transfers G_T/G = **{f_GT_pct:.0f}%** is the residual (100% − Iᴳ/G).")
+st.sidebar.caption(f"⇒ Transfers Gᵀ/G = **{f_GT_pct:.0f}%** is the residual (100% − Iᴳ/G).")
 
 fig_comp = go.Figure()
 for name, val, color in [("Iᴳ", f_IG_pct, "#16a34a"),
-                          ("G_T", f_GT_pct, "#7c3aed")]:
+                          ("Gᵀ", f_GT_pct, "#7c3aed")]:
     fig_comp.add_trace(go.Bar(y=["G/Y"], x=[val], name=name, orientation="h",
                                marker_color=color,
                                text=f"{name} {val:.0f}%" if val > 3 else "",
-                               textposition="inside", insidetextanchor="middle"))
+                               textposition="inside", insidetextanchor="middle",
+                               hoverinfo="skip"))
 fig_comp.update_layout(barmode="stack", height=110, showlegend=False,
                         margin=dict(l=0, r=0, t=0, b=0),
                         xaxis=dict(range=[0, 100], showticklabels=False),
@@ -385,7 +386,7 @@ else:
     bench_table = pd.DataFrame({
         "Variable": ["Output Y", "Consumption C", "Investment I", "Private capital K",
                      "Public capital Kᴳ", "Government spending G (total)",
-                     "  Public investment Iᴳ", "  Transfers G_T",
+                     "  Public investment Iᴳ", "  Transfers Gᵀ",
                      "Labor input N (% of time)", "Real wage w", "Tax rate τ (%)"],
         bench_left_label: [ss_benchmark.Y, ss_benchmark.C, ss_benchmark.I, ss_benchmark.K, ss_benchmark.KG,
                             ss_benchmark.G, ss_benchmark.IG, ss_benchmark.GT, ss_benchmark.N * 100,
@@ -468,7 +469,7 @@ marg_left_label, marg_right_label = f"G/Y = {BENCH_s_G_pct:.0f}% (at current oth
 marg_table = pd.DataFrame({
     "Variable": ["Output Y", "Consumption C", "Investment I", "Private capital K",
                  "Public capital Kᴳ", "Government spending G (total)",
-                 "  Public investment Iᴳ", "  Transfers G_T",
+                 "  Public investment Iᴳ", "  Transfers Gᵀ",
                  "Labor input N (% of time)", "Real wage w", "Tax rate τ (%)"],
     marg_left_label: [ss_old.Y, ss_old.C, ss_old.I, ss_old.K, ss_old.KG,
                        ss_old.G, ss_old.IG, ss_old.GT, ss_old.N * 100,
@@ -700,10 +701,10 @@ with st.expander("ℹ️ Methodology notes"):
   way there is for a lump-sum-financed, all-transfers *composition* change.
 - **Composition (item 5)**: total government spending G/Y is split into public
   investment Iᴳ (accumulates into Kᴳ, productivity-enhancing if θ_G>0) and transfers
-  G_T (resource-neutral, returned to households). There is no separate "basic
+  Gᵀ (resource-neutral, returned to households). There is no separate "basic
   purchases" category, since the utility function never assigns households any value
   from government consumption directly -- only Iᴳ enters the economy-wide resource
-  constraint Y=C+I+Iᴳ; G_T nets out in aggregate.
+  constraint Y=C+I+Iᴳ; Gᵀ nets out in aggregate.
 - **Panel 1 (Cumulative Effects)** compares the paper's *fixed* benchmark calibration
   (θ_N=0.58, δ=10%, r=6.5%, G/Y=20%, all of it transfers, lump-sum financing, θ_G=0)
   against whatever the sidebar is *currently* set to, so every control (financing,
