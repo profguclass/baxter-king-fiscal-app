@@ -21,11 +21,99 @@ from fiscal_model import (
     calibrate_theta_L,
     public_investment_long_run,
     run_experiment,
+    simulate_transition,
     steady_state_for_policy,
 )
 
 st.set_page_config(page_title="Fiscal Policy in General Equilibrium",
                     page_icon="\U0001F3DB️", layout="wide")
+
+# --------------------------------------------------------------------------
+# Shared chart helpers (used by both the "Cumulative Effects" and "Marginal
+# Effects" time-series panels below).
+# --------------------------------------------------------------------------
+
+
+def line_fig(title, series_specs, yaxis_title, yrs):
+    fig = go.Figure()
+    for name, arr, color in series_specs:
+        fig.add_trace(go.Scatter(x=yrs, y=arr[:len(yrs)], mode="lines+markers",
+                                  name=name, line=dict(color=color, width=2), marker=dict(size=4)))
+    fig.add_hline(y=0, line_dash="dot", line_color="gray")
+    fig.update_layout(title=dict(text=title, y=0.98, yanchor="top"),
+                       xaxis_title="Years after the change", yaxis_title=yaxis_title,
+                       height=420, legend=dict(orientation="h", y=1.18, yanchor="bottom"),
+                       margin=dict(t=110, b=20))
+    return fig
+
+
+def render_transition_tabs(path, slider_key, caption_commodity, caption_labor, caption_financial):
+    """Renders the Commodity/Labor/Financial-market tabbed transition-path charts
+    shared by both time-series panels, given any TransitionPath-like object."""
+    years_to_show = st.slider("Years to display", 5, 100, 25, 5, key=slider_key)
+    yrs = path.years[:years_to_show]
+
+    tab1, tab2, tab3 = st.tabs(["Commodity market", "Labor market", "Financial market"])
+
+    with tab1:
+        st.plotly_chart(line_fig(
+            "Output, consumption, investment, government spending",
+            [("Output (Y)", path.Y, "#2563eb"), ("Consumption (C)", path.C, "#16a34a"),
+             ("Investment (I)", path.I, "#f59e0b"), ("Government spending (G)", path.G, "#6b7280")],
+            "% deviation from original steady state", yrs), use_container_width=True)
+        st.caption(caption_commodity)
+
+    with tab2:
+        st.plotly_chart(line_fig(
+            "Labor input and the real wage",
+            [("Labor input (N)", path.N, "#2563eb"), ("Real wage (w)", path.W, "#dc2626")],
+            "% deviation from original steady state", yrs), use_container_width=True)
+        st.caption(caption_labor)
+
+    with tab3:
+        st.plotly_chart(line_fig(
+            "Private and public capital stocks",
+            [("Private capital (K)", path.K, "#2563eb"), ("Public capital (Kᴳ)", path.KG, "#16a34a")],
+            "% deviation from original steady state", yrs), use_container_width=True)
+        fig_r = go.Figure(go.Scatter(x=yrs, y=path.r_bp[:years_to_show], mode="lines+markers",
+                                      line=dict(color="#7c3aed", width=2)))
+        fig_r.add_hline(y=0, line_dash="dot", line_color="gray")
+        fig_r.update_layout(title="Real interest rate, deviation from steady state",
+                             xaxis_title="Years after the change", yaxis_title="Basis points",
+                             height=350, margin=dict(t=50, b=20))
+        st.plotly_chart(fig_r, use_container_width=True)
+        st.caption(caption_financial)
+
+
+def regime_transition_path(ss_from, ss_to, T_sim=200):
+    """Perfect-foresight transition path for a permanent, immediate switch from the
+    structural regime/policy of ss_from to that of ss_to -- used for the "Cumulative
+    Effects" panel's time series, where financing/composition/θ_G/r can all differ at
+    once (not just G/Y, unlike the ΔG/Y-specific experiment). Linearizes around the
+    DESTINATION regime ss_to (the same convention run_experiment uses for a permanent
+    shock), with the ORIGIN's capital stocks as the mismatched initial condition; G
+    itself is treated as jumping to its new share immediately (g_path=0 throughout),
+    since only capital is predetermined -- consumption, labor, and public capital's
+    target level all reflect the new regime from t=0 onward."""
+    k0 = np.log(ss_from.K / ss_to.K)
+    kg0 = np.log(ss_from.KG / ss_to.KG) if (ss_from.KG > 0 and ss_to.KG > 0) else 0.0
+    path = simulate_transition(ss_to, np.zeros(1), k0=k0, kg0=kg0, T_sim=T_sim)
+
+    def shift(field_ref, X_ref, X_old):
+        return field_ref + 100.0 * np.log(X_ref / X_old)
+
+    path.Y = shift(path.Y, ss_to.Y, ss_from.Y)
+    path.C = shift(path.C, ss_to.C, ss_from.C)
+    path.I = shift(path.I, ss_to.I, ss_from.I)
+    path.K = shift(path.K, ss_to.K, ss_from.K)
+    if ss_to.KG > 0 and ss_from.KG > 0:
+        path.KG = shift(path.KG, ss_to.KG, ss_from.KG)
+    else:
+        path.KG = np.zeros_like(path.KG)
+    path.N = shift(path.N, ss_to.N, ss_from.N)
+    path.W = shift(path.W, ss_to.w, ss_from.w)
+    path.G = np.full_like(path.G, 100.0 * np.log(ss_to.G / ss_from.G))
+    return path
 
 # --------------------------------------------------------------------------
 # Sidebar -- model controls
@@ -207,14 +295,16 @@ try:
 except Exception as exc:  # noqa: BLE001
     benchmark_error = str(exc)
 
-st.header("1. Comparative steady states")
+st.header("1. Cumulative Effects")
 st.write("Exact, closed-form solution of the model's long-run (“great ratios”) "
          "equilibrium: the paper's **fixed benchmark calibration** (θ_N=0.58, δ=10%, "
          "r=6.5%, G/Y=20%, all of it transfers, lump-sum financing, θ_G=0) vs. "
          "**whatever the sidebar is currently set to**. Moving *any* sidebar control -- "
          "duration aside -- changes the right-hand column, including financing alone "
          "(item 2): switching to Income tax distorts the household's margins even if "
-         "G/Y and composition don't move.")
+         "G/Y and composition don't move. \"Cumulative\" because this bundles the net "
+         "effect of *every* control that currently differs from the benchmark, not just "
+         "one at a time -- see \"2. Marginal Effects\" below to isolate a single lever.")
 
 if benchmark_error:
     st.error(f"Could not compute the benchmark steady state: {benchmark_error}")
@@ -259,9 +349,83 @@ else:
                                  yaxis_title="% change", height=380, margin=dict(t=50, b=20))
     st.plotly_chart(fig_bench_bar, use_container_width=True)
 
+    st.subheader("Transition path: benchmark → current settings")
+    st.write("Perfect-foresight transition path (log-linearized around the **current "
+             "settings**, solved exactly via eigen-decomposition), imagining the "
+             "economy starts with the benchmark's capital stocks and this new "
+             "regime -- financing, composition, θ_G, r, and G/Y all at once -- is "
+             "put permanently in place at year 0. All series are % deviations from "
+             "the **benchmark** level.")
+    try:
+        cumulative_path = regime_transition_path(ss_benchmark, ss_current, T_sim=200)
+        render_transition_tabs(
+            cumulative_path, wkey("years_to_show_cumulative"),
+            caption_commodity="Compare to Baxter & King Figures 2-4, but here the "
+                "\"shock\" is the *entire* gap between the benchmark and the sidebar's "
+                "current settings, not a single isolated policy lever.",
+            caption_labor="Labor and the wage jump immediately to reflect the new "
+                "regime's prices; only capital is predetermined and adjusts gradually.",
+            caption_financial="Watch how far and how fast private (and, if θ_G>0, "
+                "public) capital has to move to reach the new regime's steady state.",
+        )
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"Could not compute the cumulative transition path: {exc}")
+
 # --------------------------------------------------------------------------
-# Headline numbers (the ΔG/Y policy-experiment multipliers specifically)
+# 2. Marginal Effects: isolating the ΔG/Y lever specifically, holding every
+# OTHER sidebar setting (financing, composition, θ_G, r) fixed at whatever
+# it is currently set to. Reuses ss_old/ss_new/path from the ΔG/Y experiment
+# above, so resetting G/Y to 20% always drives the steady-state comparison
+# back to exactly zero.
 # --------------------------------------------------------------------------
+
+st.header("2. Marginal Effects")
+st.write("Same closed-form solution, but comparing **G/Y = 20%** against **the total "
+         "government spending set in the sidebar (item 5)**, holding financing, "
+         "composition, θ_G, and r fixed at whatever the sidebar currently has them at "
+         "on *both* sides. \"Marginal\" because this isolates the effect of *one* lever "
+         "at a time -- resetting item 5 back to 20% always brings the numbers below back "
+         "to zero, regardless of what items 2/3/4/6 are set to.")
+
+marg_left_label, marg_right_label = f"G/Y = {BENCH_s_G_pct:.0f}% (at current other settings)", "Current G/Y"
+
+marg_table = pd.DataFrame({
+    "Variable": ["Output Y", "Consumption C", "Investment I", "Private capital K",
+                 "Public capital Kᴳ", "Government spending G (total)",
+                 "  Public investment Iᴳ", "  Transfers G_T",
+                 "Labor input N (% of time)", "Real wage w", "Tax rate τ (%)"],
+    marg_left_label: [ss_old.Y, ss_old.C, ss_old.I, ss_old.K, ss_old.KG,
+                       ss_old.G, ss_old.IG, ss_old.GT, ss_old.N * 100,
+                       ss_old.w, ss_old.tau * 100],
+    marg_right_label: [ss_new.Y, ss_new.C, ss_new.I, ss_new.K, ss_new.KG, ss_new.G,
+                        ss_new.IG, ss_new.GT, ss_new.N * 100,
+                        ss_new.w, ss_new.tau * 100],
+})
+marg_both_zero = (marg_table[marg_left_label] == 0) & (marg_table[marg_right_label] == 0)
+marg_table["% change"] = 100 * (marg_table[marg_right_label] / marg_table[marg_left_label].replace(0, np.nan) - 1)
+marg_table.loc[marg_both_zero, "% change"] = 0.0
+
+st.dataframe(
+    marg_table,
+    hide_index=True,
+    use_container_width=True,
+    column_config={
+        marg_left_label: st.column_config.NumberColumn(format="%.6f"),
+        marg_right_label: st.column_config.NumberColumn(format="%.6f"),
+        "% change": st.column_config.NumberColumn(format="%+.2f%%"),
+    },
+)
+
+marg_bar_vars = ["Output Y", "Consumption C", "Investment I", "Private capital K", "Public capital Kᴳ"]
+marg_pct_change = marg_table.set_index("Variable").loc[marg_bar_vars, "% change"]
+marg_bar_heights = marg_pct_change.fillna(0.0).values
+marg_bar_text = [("n/a" if pd.isna(v) else f"{v:+.2f}%") for v in marg_pct_change.values]
+fig_marg_bar = go.Figure(go.Bar(x=marg_bar_vars, y=marg_bar_heights,
+                                 marker_color=["#2563eb" if v >= 0 else "#dc2626" for v in marg_bar_heights],
+                                 text=marg_bar_text, textposition="outside"))
+fig_marg_bar.update_layout(title=f"% change from the G/Y = {BENCH_s_G_pct:.0f}% baseline (ΔG/Y effect only)",
+                            yaxis_title="% change", height=380, margin=dict(t=50, b=20))
+st.plotly_chart(fig_marg_bar, use_container_width=True)
 
 if abs(delta_s_G_pct) < 1e-9:
     st.info("ΔG/Y is set to 0 — the long-run/impact **multipliers** and the **transition "
@@ -296,67 +460,23 @@ else:
             f"direct resource cost of the spending itself."
         )
 
-    # --------------------------------------------------------------------------
-    # 2. Transition dynamics
-    # --------------------------------------------------------------------------
-
-    st.header("2. Transition dynamics")
+    st.subheader("Transition path: isolating the ΔG/Y shock")
     st.write("Perfect-foresight transition path (log-linearized around the relevant steady "
              "state, solved exactly via eigen-decomposition -- no simulation noise). "
              "All series are % deviations from the *original* steady state, matching "
              "Figures 2-4 of the paper.")
-
-    years_to_show = st.slider("Years to display", 5, 100, 25, 5, key=wkey("years_to_show"))
-    yrs = path.years[:years_to_show]
-
-    def line_fig(title, series_specs, yaxis_title):
-        fig = go.Figure()
-        for name, arr, color in series_specs:
-            fig.add_trace(go.Scatter(x=yrs, y=arr[:years_to_show], mode="lines+markers",
-                                      name=name, line=dict(color=color, width=2), marker=dict(size=4)))
-        fig.add_hline(y=0, line_dash="dot", line_color="gray")
-        fig.update_layout(title=dict(text=title, y=0.98, yanchor="top"),
-                           xaxis_title="Years after the shock", yaxis_title=yaxis_title,
-                           height=420, legend=dict(orientation="h", y=1.18, yanchor="bottom"),
-                           margin=dict(t=110, b=20))
-        return fig
-
-    tab1, tab2, tab3 = st.tabs(["Commodity market", "Labor market", "Financial market"])
-
-    with tab1:
-        st.plotly_chart(line_fig(
-            "Output, consumption, investment, government spending",
-            [("Output (Y)", path.Y, "#2563eb"), ("Consumption (C)", path.C, "#16a34a"),
-             ("Investment (I)", path.I, "#f59e0b"), ("Government spending (G)", path.G, "#6b7280")],
-            "% deviation from original steady state"), use_container_width=True)
-        st.caption("Compare to Baxter & King Figure 2 (permanent) / Figure 3 (temporary war) / "
-                   "Figure 4 (GRH). Watch the investment 'accelerator boom' on impact when the "
-                   "shock is permanent and lump-sum financed.")
-
-    with tab2:
-        st.plotly_chart(line_fig(
-            "Labor input and the real wage",
-            [("Labor input (N)", path.N, "#2563eb"), ("Real wage (w)", path.W, "#dc2626")],
-            "% deviation from original steady state"), use_container_width=True)
-        st.caption("A permanent, lump-sum-financed increase in G is a negative wealth effect: "
-                   "households work more and consume less, so labor rises and (with capital "
-                   "predetermined) the wage falls on impact.")
-
-    with tab3:
-        st.plotly_chart(line_fig(
-            "Private and public capital stocks",
-            [("Private capital (K)", path.K, "#2563eb"), ("Public capital (Kᴳ)", path.KG, "#16a34a")],
-            "% deviation from original steady state"), use_container_width=True)
-        fig_r = go.Figure(go.Scatter(x=yrs, y=path.r_bp[:years_to_show], mode="lines+markers",
-                                      line=dict(color="#7c3aed", width=2)))
-        fig_r.add_hline(y=0, line_dash="dot", line_color="gray")
-        fig_r.update_layout(title="Real interest rate, deviation from steady state",
-                             xaxis_title="Years after the shock", yaxis_title="Basis points",
-                             height=350, margin=dict(t=50, b=20))
-        st.plotly_chart(fig_r, use_container_width=True)
-        st.caption("An unanticipated permanent increase in G should raise short real rates on "
-                   "impact -- the model's sharpest, most testable empirical prediction "
-                   "(Section III.E of the paper).")
+    render_transition_tabs(
+        path, wkey("years_to_show_marginal"),
+        caption_commodity="Compare to Baxter & King Figure 2 (permanent) / Figure 3 "
+            "(temporary war) / Figure 4 (GRH). Watch the investment 'accelerator boom' "
+            "on impact when the shock is permanent and lump-sum financed.",
+        caption_labor="A permanent, lump-sum-financed increase in G is a negative wealth "
+            "effect: households work more and consume less, so labor rises and (with "
+            "capital predetermined) the wage falls on impact.",
+        caption_financial="An unanticipated permanent increase in G should raise short "
+            "real rates on impact -- the model's sharpest, most testable empirical "
+            "prediction (Section III.E of the paper).",
+    )
 
     # --------------------------------------------------------------------------
     # Duration sensitivity (Table 3 style)
@@ -472,14 +592,18 @@ with st.expander("ℹ️ Methodology notes"):
   purchases" category, since the utility function never assigns households any value
   from government consumption directly -- only Iᴳ enters the economy-wide resource
   constraint Y=C+I+Iᴳ; G_T nets out in aggregate.
-- **Panel 1** compares the paper's *fixed* benchmark calibration (θ_N=0.58, δ=10%,
-  r=6.5%, G/Y=20%, all of it transfers, lump-sum financing, θ_G=0) against whatever
-  the sidebar is *currently* set to, so every control (financing, composition, θ_G,
-  r, G/Y) shows up as a difference there -- including financing alone, since the
-  (1-τ) wedge distorts the household's margins independent of net revenue. The
-  **multipliers and transition dynamics** below instead isolate the ΔG/Y policy
-  lever specifically, holding every other setting fixed on both sides of that
-  comparison -- which is why they need ΔG/Y ≠ 0 to be defined.
+- **Panel 1 (Cumulative Effects)** compares the paper's *fixed* benchmark calibration
+  (θ_N=0.58, δ=10%, r=6.5%, G/Y=20%, all of it transfers, lump-sum financing, θ_G=0)
+  against whatever the sidebar is *currently* set to, so every control (financing,
+  composition, θ_G, r, G/Y) shows up as a difference there -- including financing
+  alone, since the (1-τ) wedge distorts the household's margins independent of net
+  revenue. Its transition-path chart imagines the economy starting at the
+  benchmark's capital stocks with the current regime put permanently in place.
+- **Panel 2 (Marginal Effects)** instead isolates the ΔG/Y policy lever specifically,
+  holding every other setting (financing, composition, θ_G, r) fixed on both sides
+  of the comparison -- resetting G/Y to 20% always brings it back to exactly zero,
+  and its multipliers/transition-path chart need ΔG/Y ≠ 0 to be defined for the
+  same reason.
 - Reported multipliers are close to, but will not exactly reproduce, the point
   estimates in the paper's Tables 2-4, which are built from a closed-form elasticity
   approximation (equation 16/16'); this app instead solves the *exact* nonlinear
@@ -666,9 +790,9 @@ st.markdown("and under lump-sum financing:")
 st.latex(r"N = \frac{\theta_N}{\theta_L\,s_C + \theta_N}")
 st.latex(r"Y=\frac{Y}{N}\cdot N,\qquad K=\kappa N,\qquad C=s_C\,Y,\qquad I=s_I\,Y")
 st.markdown(
-    "This is the exact equation solved for the "
-    "**\"1. Comparative steady states\"** table above: once $N$ is known, every "
-    "other steady-state quantity is a simple multiple of it. This closed-form "
+    "This is the exact equation solved for the **\"1. Cumulative Effects\"** and "
+    "**\"2. Marginal Effects\"** tables above: once $N$ is known, every other "
+    "steady-state quantity is a simple multiple of it. This closed-form "
     "solve is why the app never fails to converge the way a numerical "
     "root-finder might."
 )
