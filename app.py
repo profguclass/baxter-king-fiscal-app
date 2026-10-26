@@ -222,15 +222,29 @@ if not permanent:
 
 # 5. Composition of G ------------------------------------------------------
 st.sidebar.subheader("5. Composition of G")
-st.sidebar.caption("Government spending has no separate \"basic purchases\" term -- the "
-                    "utility function never values government consumption directly -- so "
-                    "it splits into just two pieces: public investment Iᴳ and transfers Gᵀ.")
+st.sidebar.caption("Government spending splits into three pieces: public investment Iᴳ, "
+                    "government consumption Gᶜ (in-kind welfare such as health care, "
+                    "education, or food programs, valued by households), and cash "
+                    "transfers Gᵀ.")
 f_IG_pct = st.sidebar.slider("Public investment share of G, Iᴳ/G (%)", 0.0, 100.0, 0.0, 5.0, key=wkey("f_IG_pct"))
-f_GT_pct = 100.0 - f_IG_pct
-st.sidebar.caption(f"⇒ Transfers Gᵀ/G = **{f_GT_pct:.0f}%** is the residual (100% − Iᴳ/G).")
+f_GC_pct = st.sidebar.slider("Government consumption share of G, Gᶜ/G (%)", 0.0, 100.0, 0.0, 5.0,
+                              key=wkey("f_GC_pct"))
+if f_IG_pct + f_GC_pct > 100.0:
+    f_GC_pct = 100.0 - f_IG_pct
+    st.sidebar.caption(f"Iᴳ/G + Gᶜ/G can't exceed 100%, so Gᶜ/G is capped at **{f_GC_pct:.0f}%**.")
+f_GT_pct = 100.0 - f_IG_pct - f_GC_pct
+st.sidebar.caption(f"⇒ Transfers Gᵀ/G = **{f_GT_pct:.0f}%** is the residual (100% − Iᴳ/G − Gᶜ/G).")
+phi = st.sidebar.slider(
+    "Value of Gᶜ to households, φ", 0.0, 1.0, 0.5, 0.05,
+    help="Utility is ln(C + φ·Gᶜ) + θ_L·ln(1−N). φ=0: Gᶜ is a pure drain (Baxter & King's "
+         "\"basic purchases\"). φ=1: Gᶜ is a perfect substitute for private consumption, "
+         "so under lump-sum financing it crowds out C one-for-one and leaves output unchanged.",
+    key=wkey("phi"),
+)
 
 fig_comp = go.Figure()
 for name, val, color in [("Iᴳ", f_IG_pct, "#16a34a"),
+                          ("Gᶜ", f_GC_pct, "#f59e0b"),
                           ("Gᵀ", f_GT_pct, "#7c3aed")]:
     fig_comp.add_trace(go.Bar(y=["G/Y"], x=[val], name=name, orientation="h",
                                marker_color=color,
@@ -263,7 +277,8 @@ theta_G_v = theta_G
 s_G_old_v = s_G_old_pct / 100.0
 s_G_new_v = s_G_new_pct / 100.0
 N_target_v = N_target_pct / 100.0
-f_IG_v, f_GT_v = f_IG_pct / 100.0, f_GT_pct / 100.0
+f_IG_v, f_GC_v, f_GT_v = f_IG_pct / 100.0, f_GC_pct / 100.0, f_GT_pct / 100.0
+phi_v = phi
 
 error = None
 path_error = None
@@ -275,6 +290,7 @@ try:
         s_G_old=s_G_old_v, s_G_new=s_G_new_v, f_IG=f_IG_v, f_GT=f_GT_v,
         N_target=N_target_v, financing=financing,
         permanent=permanent, duration_years=duration_years, T_sim=200,
+        f_GC=f_GC_v, phi=phi_v,
     )
     ss_old, ss_new, path = experiment.ss_old, experiment.ss_new, experiment.path
 except Exception as exc:  # noqa: BLE001
@@ -288,13 +304,14 @@ except Exception as exc:  # noqa: BLE001
     try:
         theta_L_fallback = calibrate_theta_L(theta_N_v, delta_v, r_v, 1.0, theta_G_v,
                                               s_G_old_v * f_IG_v, s_G_old_v * f_GT_v,
-                                              financing == "income_tax", N_target_v)
+                                              financing == "income_tax", N_target_v,
+                                              s_GC=s_G_old_v * f_GC_v, phi=phi_v)
         ss_old = steady_state_for_policy(theta_N_v, delta_v, r_v, 1.0, theta_G_v,
                                           s_G_old_v, f_IG_v, f_GT_v, theta_L_fallback,
-                                          financing == "income_tax")
+                                          financing == "income_tax", f_GC=f_GC_v, phi=phi_v)
         ss_new = steady_state_for_policy(theta_N_v, delta_v, r_v, 1.0, theta_G_v,
                                           s_G_new_v, f_IG_v, f_GT_v, theta_L_fallback,
-                                          financing == "income_tax")
+                                          financing == "income_tax", f_GC=f_GC_v, phi=phi_v)
         path_error = str(exc)
     except Exception as exc2:  # noqa: BLE001 -- steady state itself is infeasible
         error = str(exc2)
@@ -355,7 +372,8 @@ try:
     # consumption. Holding theta_L fixed at the benchmark's value lets N move honestly.
     ss_current = steady_state_for_policy(theta_N_v, delta_v, r_v, 1.0, theta_G_v,
                                           s_G_new_v, f_IG_v, f_GT_v,
-                                          theta_L_bench, financing == "income_tax")
+                                          theta_L_bench, financing == "income_tax",
+                                          f_GC=f_GC_v, phi=phi_v)
     # "Reverted" state for the Cumulative Effects time series under a TEMPORARY
     # duration: current settings' own regime (financing/composition/θ_G/r), but at
     # the benchmark's G/Y level -- the true long-run anchor once G/Y reverts, since
@@ -363,7 +381,8 @@ try:
     # regime_transition_path's docstring for why this matters).
     ss_reverted = steady_state_for_policy(theta_N_v, delta_v, r_v, 1.0, theta_G_v,
                                            s_G_old_v, f_IG_v, f_GT_v,
-                                           theta_L_bench, financing == "income_tax")
+                                           theta_L_bench, financing == "income_tax",
+                                           f_GC=f_GC_v, phi=phi_v)
 except Exception as exc:  # noqa: BLE001
     benchmark_error = str(exc)
 
@@ -386,13 +405,13 @@ else:
     bench_table = pd.DataFrame({
         "Variable": ["Output Y", "Consumption C", "Investment I", "Private capital K",
                      "Public capital Kᴳ", "Government spending G (total)",
-                     "  Public investment Iᴳ", "  Transfers Gᵀ",
+                     "  Public investment Iᴳ", "  Government consumption Gᶜ", "  Transfers Gᵀ",
                      "Labor input N (% of time)", "Real wage w", "Tax rate τ (%)"],
         bench_left_label: [ss_benchmark.Y, ss_benchmark.C, ss_benchmark.I, ss_benchmark.K, ss_benchmark.KG,
-                            ss_benchmark.G, ss_benchmark.IG, ss_benchmark.GT, ss_benchmark.N * 100,
+                            ss_benchmark.G, ss_benchmark.IG, ss_benchmark.GC, ss_benchmark.GT, ss_benchmark.N * 100,
                             ss_benchmark.w, ss_benchmark.tau * 100],
         bench_right_label: [ss_current.Y, ss_current.C, ss_current.I, ss_current.K, ss_current.KG, ss_current.G,
-                             ss_current.IG, ss_current.GT, ss_current.N * 100,
+                             ss_current.IG, ss_current.GC, ss_current.GT, ss_current.N * 100,
                              ss_current.w, ss_current.tau * 100],
     })
     bench_both_zero = (bench_table[bench_left_label] == 0) & (bench_table[bench_right_label] == 0)
@@ -469,13 +488,13 @@ marg_left_label, marg_right_label = f"G/Y = {BENCH_s_G_pct:.0f}% (at current oth
 marg_table = pd.DataFrame({
     "Variable": ["Output Y", "Consumption C", "Investment I", "Private capital K",
                  "Public capital Kᴳ", "Government spending G (total)",
-                 "  Public investment Iᴳ", "  Transfers Gᵀ",
+                 "  Public investment Iᴳ", "  Government consumption Gᶜ", "  Transfers Gᵀ",
                  "Labor input N (% of time)", "Real wage w", "Tax rate τ (%)"],
     marg_left_label: [ss_old.Y, ss_old.C, ss_old.I, ss_old.K, ss_old.KG,
-                       ss_old.G, ss_old.IG, ss_old.GT, ss_old.N * 100,
+                       ss_old.G, ss_old.IG, ss_old.GC, ss_old.GT, ss_old.N * 100,
                        ss_old.w, ss_old.tau * 100],
     marg_right_label: [ss_new.Y, ss_new.C, ss_new.I, ss_new.K, ss_new.KG, ss_new.G,
-                        ss_new.IG, ss_new.GT, ss_new.N * 100,
+                        ss_new.IG, ss_new.GC, ss_new.GT, ss_new.N * 100,
                         ss_new.w, ss_new.tau * 100],
 })
 marg_both_zero = (marg_table[marg_left_label] == 0) & (marg_table[marg_right_label] == 0)
@@ -575,14 +594,15 @@ else:
                 try:
                     e = run_experiment(theta_N_v, delta_v, r_v, 1.0, theta_G_v, s_G_old_v, s_G_new_v,
                                         f_IG_v, f_GT_v, N_target_v, financing,
-                                        permanent=False, duration_years=T, T_sim=200)
+                                        permanent=False, duration_years=T, T_sim=200,
+                                        f_GC=f_GC_v, phi=phi_v)
                     mults.append(e.multiplier_impact)
                 except Exception:
                     mults.append(np.nan)
             try:
                 perm_e = run_experiment(theta_N_v, delta_v, r_v, 1.0, theta_G_v, s_G_old_v, s_G_new_v,
                                          f_IG_v, f_GT_v, N_target_v, financing,
-                                         permanent=True, T_sim=200)
+                                         permanent=True, T_sim=200, f_GC=f_GC_v, phi=phi_v)
                 perm_mult = perm_e.multiplier_impact
             except Exception:
                 perm_mult = None
@@ -700,11 +720,12 @@ with st.expander("ℹ️ Methodology notes"):
   state even at 100% transfers (item 5) -- there is no "neutral" financing switch the
   way there is for a lump-sum-financed, all-transfers *composition* change.
 - **Composition (item 5)**: total government spending G/Y is split into public
-  investment Iᴳ (accumulates into Kᴳ, productivity-enhancing if θ_G>0) and transfers
-  Gᵀ (resource-neutral, returned to households). There is no separate "basic
-  purchases" category, since the utility function never assigns households any value
-  from government consumption directly -- only Iᴳ enters the economy-wide resource
-  constraint Y=C+I+Iᴳ; Gᵀ nets out in aggregate.
+  investment Iᴳ (accumulates into Kᴳ, productivity-enhancing if θ_G>0), government
+  consumption Gᶜ (in-kind welfare valued by households through C+φ·Gᶜ), and transfers
+  Gᵀ (resource-neutral, returned to households). Iᴳ and Gᶜ enter the economy-wide
+  resource constraint Y=C+I+Iᴳ+Gᶜ; Gᵀ nets out in aggregate. With φ=0, Gᶜ is
+  Baxter & King's pure-drain "basic purchases"; with φ=1 and lump-sum financing it
+  crowds out private consumption one-for-one and leaves output unchanged.
 - **Panel 1 (Cumulative Effects)** compares the paper's *fixed* benchmark calibration
   (θ_N=0.58, δ=10%, r=6.5%, G/Y=20%, all of it transfers, lump-sum financing, θ_G=0)
   against whatever the sidebar is *currently* set to, so every control (financing,
@@ -754,7 +775,9 @@ st.markdown(
 | $K_t$ | Private capital stock |
 | $K^G_t$ | Public (government) capital stock |
 | $I_t,\ I^G_t$ | Private and public investment |
+| $G^C_t$ | Government consumption (in-kind welfare), valued by households |
 | $G^T_t$ | Lump-sum government transfers |
+| $\phi$ | How well $G^C_t$ substitutes for private consumption ($0\le\phi\le1$) |
 | $w_t,\ r_t$ | Real wage and real rental rate on capital |
 | $\tau_t$ | Tax rate |
 | $\theta_N,\ \theta_K=1-\theta_N$ | Labor's and capital's shares of income |
@@ -769,15 +792,17 @@ state** — the units used in every transition-path chart in this app.
 )
 
 st.subheader("A.2 Preferences")
-st.latex(r"u(C_t, N_t) = \ln C_t + \theta_L \ln(1-N_t)")
+st.latex(r"u(C_t, N_t) = \ln\big(C_t + \phi\,G^C_t\big) + \theta_L \ln(1-N_t)")
 st.markdown(
     "Households value consumption and leisure, with **log utility** in each — the "
     "standard King-Plosser-Rebelo preference specification that keeps labor supply "
-    "responses well-behaved along a balanced growth path. Notice government spending "
-    "does **not** appear here at all -- households derive no direct utility from "
-    "$G^T_t$ or $I^G_t$, which is exactly why there is no separate \"basic "
-    "purchases\" term anywhere in this model: a category of spending the household "
-    "valued directly would need to enter this utility function, and none does. "
+    "responses well-behaved along a balanced growth path. Government consumption "
+    "$G^C_t$ (in-kind welfare: health care, education, food programs) enters as a "
+    "partial substitute for private consumption, with weight $\\phi$ (sidebar item 5). "
+    "With $\\phi=0$ it gives no utility and is a pure resource drain, exactly "
+    "Baxter & King's \"basic purchases\"; with $\\phi=1$ a unit of $G^C_t$ is worth "
+    "as much as a unit of $C_t$. Households derive no direct utility from $I^G_t$ "
+    "or $G^T_t$ (transfers raise utility only by paying for $C_t$). "
     "$\\theta_L$ is not a free slider in this app; instead it is *calibrated* (see "
     "A.6) so that steady-state labor supply matches the target hours-worked share at "
     "the baseline policy — exactly as Baxter & King do in their Table 1."
@@ -800,24 +825,21 @@ st.latex(r"K_{t+1} = (1-\delta)K_t + I_t \qquad\qquad K^G_{t+1} = (1-\delta)K^G_
 st.markdown(
     "Both private and public capital accumulate by the standard **perpetual "
     "inventory** rule, and (for simplicity) depreciate at the same rate $\\delta$. "
-    "Public capital is financed by public investment $I^G_t$, one of the two "
+    "Public capital is financed by public investment $I^G_t$, one of the three "
     "components of total government spending (sidebar item 5)."
 )
 
 st.subheader("A.5 Resource constraint and the government budget")
-st.latex(r"Y_t = C_t + I_t + I^G_t")
+st.latex(r"Y_t = C_t + I_t + I^G_t + G^C_t")
 st.markdown(
-    "Output is used for private consumption, private investment, and public "
-    "investment. **Transfers $G^T_t$ do not appear here** — a transfer just moves "
-    "resources from the government's books to a household's pocket without using up "
-    "any output, so it nets out of the economy-wide resource constraint even though "
-    "it is part of the government's budget below. (There is likewise no \"basic "
-    "purchases\" term: since it would never enter the utility function of A.2 either, "
-    "keeping it in the model would just be another resource-using category "
-    "economically indistinguishable from public investment, so this app folds all "
-    "resource-using spending into $I^G_t$.)"
+    "Output is used for private consumption, private investment, public "
+    "investment, and government consumption. **Transfers $G^T_t$ do not appear "
+    "here** — a transfer just moves resources from the government's books to a "
+    "household's pocket without using up any output, so it nets out of the "
+    "economy-wide resource constraint even though it is part of the government's "
+    "budget below."
 )
-st.latex(r"\tau_t Y_t = I^G_t + G^T_t, \qquad \tau_t = \dfrac{I^G_t+G^T_t}{Y_t}")
+st.latex(r"\tau_t Y_t = I^G_t + G^C_t + G^T_t, \qquad \tau_t = \dfrac{I^G_t+G^C_t+G^T_t}{Y_t}")
 st.markdown(
     "The government's budget always balances **every period** (no debt in this "
     "model), and the tax rate is *defined* as total government spending divided "
@@ -840,8 +862,13 @@ st.markdown(
 
 st.subheader("A.6 Household optimization")
 st.markdown("Maximizing lifetime utility subject to the budget constraint above gives two first-order conditions, one per financing rule.")
-st.latex(r"\text{Labor-leisure, income tax:}\qquad \theta_L\,\frac{C_t}{1-N_t} = (1-\tau_t)\,w_t")
-st.latex(r"\text{Labor-leisure, lump-sum:}\qquad \theta_L\,\frac{C_t}{1-N_t} = w_t")
+st.markdown(
+    "Write $X_t = C_t + \\phi\\,G^C_t$ for *effective* consumption; its marginal "
+    "utility $1/X_t$ is what the household trades off against leisure and future "
+    "consumption."
+)
+st.latex(r"\text{Labor-leisure, income tax:}\qquad \theta_L\,\frac{X_t}{1-N_t} = (1-\tau_t)\,w_t")
+st.latex(r"\text{Labor-leisure, lump-sum:}\qquad \theta_L\,\frac{X_t}{1-N_t} = w_t")
 st.markdown(
     "The household works until the marginal disutility of an extra hour (left side) "
     "equals its marginal after-tax benefit (right side). Under income tax financing "
@@ -849,8 +876,8 @@ st.markdown(
     "such wedge at all — this single difference is *the* mechanism generating the "
     "app's negative multiplier result under Income tax."
 )
-st.latex(r"\text{Euler, income tax:}\qquad \frac{1}{C_t} = \beta\,\frac{1+(1-\tau_{t+1})\,\mathrm{MPK}_{t+1}-\delta}{C_{t+1}}")
-st.latex(r"\text{Euler, lump-sum:}\qquad \frac{1}{C_t} = \beta\,\frac{1+\mathrm{MPK}_{t+1}-\delta}{C_{t+1}},\qquad \beta=\frac{1}{1+r}")
+st.latex(r"\text{Euler, income tax:}\qquad \frac{1}{X_t} = \beta\,\frac{1+(1-\tau_{t+1})\,\mathrm{MPK}_{t+1}-\delta}{X_{t+1}}")
+st.latex(r"\text{Euler, lump-sum:}\qquad \frac{1}{X_t} = \beta\,\frac{1+\mathrm{MPK}_{t+1}-\delta}{X_{t+1}},\qquad \beta=\frac{1}{1+r}")
 st.markdown(
     "There is no expectation operator here: this model has no stochastic element "
     "(no random shocks to technology, policy, or anything else), so every "
@@ -897,13 +924,14 @@ st.markdown(
     "itself — since $K^G=I^G/\\delta$ depends on output, and now the equation above "
     "depends on $N$ directly too — see the code's `_supply_side_impl` and its "
     "caller `steady_state`.) Everything else in the steady state then follows in "
-    "closed form, with $s_C=1-s_I-s_{I^G}$ the steady-state consumption "
-    "share (note transfers $G^T$ never reduce $s_C$, since they aren't resource-using) "
+    "closed form, with $s_C=1-s_I-s_{I^G}-s_{G^C}$ the steady-state consumption "
+    "share (note transfers $G^T$ never reduce $s_C$, since they aren't resource-using), "
+    "$s_X=s_C+\\phi\\,s_{G^C}$ the effective-consumption share, "
     "and $s_I=\\delta\\kappa/(Y/N)$ the investment share. Under income tax financing:"
 )
-st.latex(r"N = \frac{(1-\tau)\,\theta_N}{\theta_L\,s_C + (1-\tau)\,\theta_N}")
+st.latex(r"N = \frac{(1-\tau)\,\theta_N}{\theta_L\,s_X + (1-\tau)\,\theta_N}")
 st.markdown("and under lump-sum financing:")
-st.latex(r"N = \frac{\theta_N}{\theta_L\,s_C + \theta_N}")
+st.latex(r"N = \frac{\theta_N}{\theta_L\,s_X + \theta_N}")
 st.latex(r"Y=\frac{Y}{N}\cdot N,\qquad K=\kappa N,\qquad C=s_C\,Y,\qquad I=s_I\,Y")
 st.markdown(
     "This is the exact equation solved for the **\"1. Cumulative Effects\"** and "
@@ -931,7 +959,14 @@ st.markdown(
     "**forward-looking (\"jump\")** variable $\\hat c_t$ in terms of *tomorrow's* "
     "capital and government spending:"
 )
-st.latex(r"\hat c_t = \text{coef}_c\,\hat c_{t+1} + \text{coef}_k\,\hat k_{t+1} + \text{coef}_g\,\hat g_{t+1} + \text{coef}_{kg}\,\hat{k}^G_{t+1}")
+st.latex(r"\hat c_t = \text{coef}_c\,\hat c_{t+1} + \text{coef}_k\,\hat k_{t+1} + \text{coef}_g\,\hat g_{t+1} + \text{coef}_{kg}\,\hat{k}^G_{t+1} + \text{coef}_{g0}\,\hat g_t")
+st.markdown(
+    "Both conditions are in effective consumption, "
+    "$\\hat x_t = (s_C/s_X)\\,\\hat c_t + (\\phi\\,s_{G^C}/s_X)\\,\\hat g_t$, so a change in "
+    "$G^C$ that households value shifts the path of private consumption directly — "
+    "that is the extra $\\text{coef}_{g0}\\,\\hat g_t$ term, which is zero when "
+    "$\\phi=0$ or there is no $G^C$."
+)
 st.markdown(
     "Public capital's own law of motion is exogenous — it just tracks the "
     "government-spending shock directly and does not depend on $\\hat k_t$ or "

@@ -6,16 +6,16 @@ part of the main model rather than a side extension.
 
 The model:
 
-  Preferences:      u_t = log(C_t) + theta_L * log(L_t),   L_t = 1 - N_t
+  Preferences:      u_t = log(C_t + phi*GC_t) + theta_L * log(L_t),   L_t = 1 - N_t
+                     (GC = government consumption; phi in [0,1] is how well it substitutes
+                      for private consumption: phi=0 is a pure drain, as in Baxter-King's
+                      "basic purchases"; phi=1 is a perfect substitute)
   Technology:        Y_t = A * K_t^theta_K * KG_t^theta_G * N_t^theta_N
                      (theta_K = 1 - theta_N; KG = public capital stock)
   Capital accum.:    K_{t+1}  = (1-delta) K_t  + I_t
                      KG_{t+1} = (1-delta) KG_t + IG_t
-  Resource constr.:  Y_t = C_t + I_t + IG_t                (transfers G_T are not resource-using;
-                                                              there is no separate "basic purchases"
-                                                              term, since the utility function does
-                                                              not value government consumption at all)
-  Government budget: tau_t * Y_t = IG_t + G_T,t,   tau_t = (IG_t+G_T,t)/Y_t
+  Resource constr.:  Y_t = C_t + I_t + IG_t + GC_t         (transfers G_T are not resource-using)
+  Government budget: tau_t * Y_t = IG_t + GC_t + G_T,t,   tau_t = (IG_t+GC_t+G_T,t)/Y_t
                       -- i.e. the tax rate always equals total government spending as a
                       share of output, under BOTH financing rules below.
 
@@ -29,10 +29,12 @@ whether that tax distorts the household's labor/capital margin):
                         r_t*K_t): a proportional wedge on labor and capital income (this
                         is the paper's original "distortionary"/GRH channel).
 
-Total government spending G_t is split into two shares of output that sum to the
-total government-spending ratio s_G = IG/Y + G_T/Y:
+Total government spending G_t is split into three shares of output that sum to the
+total government-spending ratio s_G = IG/Y + GC/Y + G_T/Y:
   * IG   -- public investment, accumulates into a public-capital stock KG that
             raises the productivity of private capital and labor (theta_G).
+  * GC   -- government consumption, resource-using and valued by households
+            through the effective consumption X_t = C_t + phi*GC_t.
   * G_T  -- lump-sum transfers back to households; resource-neutral in aggregate.
 
 Capital (K and KG) accumulates according to the laws of motion above; the
@@ -115,9 +117,11 @@ class SteadyState:
     A: float
     tau: float
     theta_L: float
-    s_G: float       # total government spending share (IG+G_T)/Y
+    s_G: float       # total government spending share (IG+GC+G_T)/Y
     s_IG: float
+    s_GC: float
     s_GT: float
+    phi: float       # utility weight of GC in effective consumption C + phi*GC
     distortionary: bool
     kappa: float
     alpha: float
@@ -132,8 +136,9 @@ class SteadyState:
     KG: float
     C: float
     I: float
-    G: float          # total government spending IG+G_T
+    G: float          # total government spending IG+GC+G_T
     IG: float
+    GC: float
     GT: float
 
     def as_dict(self) -> dict:
@@ -142,16 +147,17 @@ class SteadyState:
 
 def calibrate_theta_L(theta_N: float, delta: float, r: float, A: float, theta_G: float,
                        s_IG: float, s_GT: float, distortionary: bool,
-                       N_target: float) -> float:
+                       N_target: float, s_GC: float = 0.0, phi: float = 0.0) -> float:
     """Choose theta_L (weight on leisure) so that steady-state labor input equals
     N_target, given the other parameters (Table 1 calibration strategy)."""
-    tau = s_IG + s_GT
+    tau = s_IG + s_GC + s_GT
     N = N_target
     supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, distortionary, N)
-    s_C = 1.0 - supply["s_I"] - s_IG
+    s_C = 1.0 - supply["s_I"] - s_IG - s_GC
     if s_C <= 0:
         raise ValueError("Government share too large: steady-state consumption share <= 0.")
-    theta_L = supply["tax_factor"] * theta_N * (1.0 - N) / (s_C * N)
+    s_X = s_C + phi * s_GC  # effective-consumption share (C + phi*GC)/Y
+    theta_L = supply["tax_factor"] * theta_N * (1.0 - N) / (s_X * N)
     if theta_L <= 0:
         raise ValueError("Implied theta_L <= 0; adjust N_target or the tax/spending settings.")
     return theta_L
@@ -159,10 +165,10 @@ def calibrate_theta_L(theta_N: float, delta: float, r: float, A: float, theta_G:
 
 def steady_state(theta_N: float, delta: float, r: float, A: float, theta_G: float,
                   s_IG: float, s_GT: float, distortionary: bool,
-                  theta_L: float) -> SteadyState:
+                  theta_L: float, s_GC: float = 0.0, phi: float = 0.0) -> SteadyState:
     """Exact steady state of the model for given parameters and government-spending
-    composition (s_IG, s_GT).  tau = s_IG+s_GT always."""
-    tau = s_IG + s_GT
+    composition (s_IG, s_GC, s_GT).  tau = s_IG+s_GC+s_GT always."""
+    tau = s_IG + s_GC + s_GT
     s_G = tau
     # Outer fixed point on N: when theta_G>0 and s_IG>0, the supply side (kappa,
     # alpha, KG) itself depends on N (see _supply_side_impl), while N in turn
@@ -173,11 +179,12 @@ def steady_state(theta_N: float, delta: float, r: float, A: float, theta_G: floa
     for _ in range(200):
         supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, distortionary, N)
         s_I = supply["s_I"]
-        s_C = 1.0 - s_I - s_IG
+        s_C = 1.0 - s_I - s_IG - s_GC
         if s_C <= 0:
             raise ValueError("Government share too large: steady-state consumption share <= 0.")
         tax_factor = supply["tax_factor"]
-        N_new = tax_factor * theta_N / (theta_L * s_C + tax_factor * theta_N)
+        s_X = s_C + phi * s_GC
+        N_new = tax_factor * theta_N / (theta_L * s_X + tax_factor * theta_N)
         if not (0 < N_new < 1):
             raise ValueError(f"Implied labor supply N={N_new:.3f} is outside (0,1).")
         if abs(N_new - N) < 1e-12:
@@ -192,25 +199,28 @@ def steady_state(theta_N: float, delta: float, r: float, A: float, theta_G: floa
     C = s_C * Y
     I = s_I * Y
     IG = s_IG * Y
+    GC = s_GC * Y
     GT = s_GT * Y
-    G = IG + GT
+    G = IG + GC + GT
 
     return SteadyState(
         theta_N=theta_N, theta_K=supply["theta_K"], theta_G=theta_G, delta=delta, r=r, A=A,
-        tau=tau, theta_L=theta_L, s_G=s_G, s_IG=s_IG, s_GT=s_GT,
+        tau=tau, theta_L=theta_L, s_G=s_G, s_IG=s_IG, s_GC=s_GC, s_GT=s_GT, phi=phi,
         distortionary=distortionary, kappa=supply["kappa"], alpha=supply["alpha"],
         w=supply["w"], q=supply["q"], s_I=s_I, s_C=s_C, N=N, L=L, Y=Y, K=K, KG=KG, C=C, I=I,
-        G=G, IG=IG, GT=GT,
+        G=G, IG=IG, GC=GC, GT=GT,
     )
 
 
 def steady_state_for_policy(theta_N: float, delta: float, r: float, A: float, theta_G: float,
                              s_G_total: float, f_IG: float, f_GT: float,
-                             theta_L: float, distortionary: bool) -> SteadyState:
+                             theta_L: float, distortionary: bool,
+                             f_GC: float = 0.0, phi: float = 0.0) -> SteadyState:
     """Steady state for a given total government-spending ratio s_G_total, split
-    into fixed composition fractions f_IG+f_GT=1 of that total."""
-    s_IG, s_GT = s_G_total * f_IG, s_G_total * f_GT
-    return steady_state(theta_N, delta, r, A, theta_G, s_IG, s_GT, distortionary, theta_L)
+    into fixed composition fractions f_IG+f_GC+f_GT=1 of that total."""
+    s_IG, s_GC, s_GT = s_G_total * f_IG, s_G_total * f_GC, s_G_total * f_GT
+    return steady_state(theta_N, delta, r, A, theta_G, s_IG, s_GT, distortionary, theta_L,
+                        s_GC=s_GC, phi=phi)
 
 
 # --------------------------------------------------------------------------
@@ -223,30 +233,39 @@ def _log_linear_coeffs(ss: SteadyState) -> dict:
     Static block:   y_hat_t = y_k*k_hat_t + y_kg*kg_hat_t + y_c*c_hat_t + y_g*g_hat_t
     Capital accum.: k_hat_{t+1} = Phi_kk*k_hat_t + Phi_kc*c_hat_t + Phi_kg*g_hat_t + Phi_k_kg*kg_hat_t
     Euler equation: c_hat_t = coef_c*c_hat_{t+1} + coef_k*k_hat_{t+1} + coef_g*g_hat_{t+1}
-                              + coef_kg*kg_hat_{t+1}
+                              + coef_kg*kg_hat_{t+1} + coef_g0*g_hat_t
+
+    The labor-leisure condition and the Euler equation are in effective consumption
+    X = C + phi*GC, whose log-deviation is x_hat = a*c_hat + b*g_hat (GC moves with
+    total G under a fixed composition); a=1, b=0 recovers the model without GC.
     """
     theta_N, theta_K, theta_G = ss.theta_N, ss.theta_K, ss.theta_G
     L = ss.L
     tau = ss.tau
-    s_C, s_I, s_IG = ss.s_C, ss.s_I, ss.s_IG
+    s_C, s_I, s_IG, s_GC = ss.s_C, ss.s_I, ss.s_IG, ss.s_GC
     delta, r = ss.delta, ss.r
+
+    s_X = s_C + ss.phi * s_GC
+    a = s_C / s_X
+    b = ss.phi * s_GC / s_X
 
     D = 1.0 - theta_N * L
     if ss.distortionary:
         # See derivation note: y_hat*(D - theta_N*L*tau/(1-tau)) = theta_K*k_hat +
-        # theta_G*kg_hat - theta_N*L*c_hat - theta_N*L*tau/(1-tau)*g_hat.
+        # theta_G*kg_hat - theta_N*L*x_hat - theta_N*L*tau/(1-tau)*g_hat.
         Dp = D - theta_N * L * tau / (1.0 - tau)
         y_k = theta_K / Dp
         y_kg = theta_G / Dp
-        y_c = -theta_N * L / Dp
-        y_g = -theta_N * L * tau / ((1.0 - tau) * Dp)
+        y_x = -theta_N * L / Dp
+        y_g = -theta_N * L * tau / ((1.0 - tau) * Dp) + y_x * b
         tax_wedge = tau / (1.0 - tau)
     else:
         y_k = theta_K / D
         y_kg = theta_G / D
-        y_c = -theta_N * L / D
-        y_g = 0.0
+        y_x = -theta_N * L / D
+        y_g = y_x * b
         tax_wedge = 0.0
+    y_c = y_x * a
 
     beta = 1.0 / (1.0 + r)
     q = r + delta
@@ -257,18 +276,21 @@ def _log_linear_coeffs(ss: SteadyState) -> dict:
     ymk_g = y_g
     ymk_kg = y_kg
 
-    coef_c = 1.0 - Omega * ymk_c - Omega * tax_wedge * y_c
-    coef_k = -Omega * ymk_k - Omega * tax_wedge * y_k
-    coef_g = -Omega * ymk_g + Omega * tax_wedge * (1.0 - y_g)
-    coef_kg = -Omega * ymk_kg - Omega * tax_wedge * y_kg
+    # Euler in x_hat: a*c_t + b*g_t = a*c_{t+1} + b*g_{t+1} - Omega*[...]_{t+1}; divide by a.
+    coef_c = (a - Omega * ymk_c - Omega * tax_wedge * y_c) / a
+    coef_k = (-Omega * ymk_k - Omega * tax_wedge * y_k) / a
+    coef_g = (b - Omega * ymk_g + Omega * tax_wedge * (1.0 - y_g)) / a
+    coef_kg = (-Omega * ymk_kg - Omega * tax_wedge * y_kg) / a
+    coef_g0 = -b / a
 
+    s_GR = s_IG + s_GC  # resource-using government spending share
     Phi_kk = (1.0 - delta) + delta * y_k / s_I
     Phi_kc = delta * (y_c - s_C) / s_I
-    Phi_kg = delta * (y_g - s_IG) / s_I
+    Phi_kg = delta * (y_g - s_GR) / s_I
     Phi_k_kg = delta * y_kg / s_I
 
-    return dict(y_k=y_k, y_kg=y_kg, y_c=y_c, y_g=y_g, s_GR=s_IG,
-                coef_c=coef_c, coef_k=coef_k, coef_g=coef_g, coef_kg=coef_kg,
+    return dict(y_k=y_k, y_kg=y_kg, y_c=y_c, y_g=y_g, s_GR=s_GR, a=a, b=b,
+                coef_c=coef_c, coef_k=coef_k, coef_g=coef_g, coef_kg=coef_kg, coef_g0=coef_g0,
                 Phi_kk=Phi_kk, Phi_kc=Phi_kc, Phi_kg=Phi_kg, Phi_k_kg=Phi_k_kg)
 
 
@@ -288,12 +310,13 @@ def _kg_hat_path(delta: float, g_full: np.ndarray, kg0: float) -> np.ndarray:
 
 def _solve_saddle_path(Phi_kk: float, Phi_kc: float, Phi_kg: float, Phi_k_kg: float,
                         coef_c: float, coef_k: float, coef_g: float, coef_kg: float,
+                        coef_g0: float,
                         k0: float, g_full: np.ndarray, kg_full: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Exact saddle-path solution of the linear perfect-foresight system
 
         k_hat_{t+1} = Phi_kk*k_hat_t + Phi_kc*c_hat_t + Phi_kg*g_hat_t + Phi_k_kg*kg_hat_t
         c_hat_t     = coef_c*c_hat_{t+1} + coef_k*k_hat_{t+1} + coef_g*g_hat_{t+1}
-                      + coef_kg*kg_hat_{t+1}
+                      + coef_kg*kg_hat_{t+1} + coef_g0*g_hat_t
 
     via eigen-decomposition (King-Plosser-Rebelo / Blanchard-Kahn method), for T periods,
     with kg_hat_t supplied exogenously as a length-(T+1) array (it is solved separately --
@@ -331,7 +354,7 @@ def _solve_saddle_path(Phi_kk: float, Phi_kc: float, Phi_kg: float, Phi_k_kg: fl
     kg_next = kg_full[1:T + 1]  # kg_hat_{t+1} for t=0..T-1
     Nk = Phi_kg * g_ext[:T] + Phi_k_kg * kg_now
     Nc = (-coef_k * (Phi_kg * g_ext[:T] + Phi_k_kg * kg_now) - coef_g * g_ext[1:T + 1]
-          - coef_kg * kg_next) / coef_c
+          - coef_kg * kg_next - coef_g0 * g_ext[:T]) / coef_c
     N = np.stack([Nk, Nc], axis=1)
     n = N @ Vinv.T  # forcing rotated into the eigen-basis: n[:,0]=stable comp., n[:,1]=unstable
 
@@ -382,14 +405,15 @@ def simulate_transition(ss_ref: SteadyState, g_path: np.ndarray,
     kg_full_ext = _kg_hat_path(ss_ref.delta, g_full, kg0)  # length T_sim+1
     k, c = _solve_saddle_path(coeffs["Phi_kk"], coeffs["Phi_kc"], coeffs["Phi_kg"], coeffs["Phi_k_kg"],
                                coeffs["coef_c"], coeffs["coef_k"], coeffs["coef_g"], coeffs["coef_kg"],
-                               k0, g_full, kg_full_ext)
+                               coeffs["coef_g0"], k0, g_full, kg_full_ext)
     kg_full = kg_full_ext[:T_sim]
     y = y_k * k + y_kg * kg_full + y_c * c + y_g * g_full
+    x = coeffs["a"] * c + coeffs["b"] * g_full  # effective consumption C + phi*GC
 
     if ss_ref.distortionary:
-        n = L * (y - c) - (L * tau / (1.0 - tau)) * (g_full - y)
+        n = L * (y - x) - (L * tau / (1.0 - tau)) * (g_full - y)
     else:
-        n = L * (y - c)
+        n = L * (y - x)
     w = y - n  # wage = MPL, log-deviation
 
     i = (y - ss_ref.s_C * c - s_GR * g_full) / ss_ref.s_I
@@ -404,7 +428,7 @@ def simulate_transition(ss_ref: SteadyState, g_path: np.ndarray,
     g_pct = 100.0 * g_full
 
     r_dev_bp = np.zeros_like(c)
-    r_dev_bp[:-1] = 10000.0 * (1.0 + ss_ref.r) * (c[1:] - c[:-1])
+    r_dev_bp[:-1] = 10000.0 * (1.0 + ss_ref.r) * (x[1:] - x[:-1])
     r_dev_bp[-1] = r_dev_bp[-2]
 
     years = np.arange(T_sim)
@@ -428,19 +452,20 @@ class PolicyExperiment:
 def run_experiment(theta_N: float, delta: float, r: float, A: float, theta_G: float,
                     s_G_old: float, s_G_new: float, f_IG: float, f_GT: float,
                     N_target: float, financing: Financing,
-                    permanent: bool, duration_years: int = 4, T_sim: int = 300) -> PolicyExperiment:
+                    permanent: bool, duration_years: int = 4, T_sim: int = 300,
+                    f_GC: float = 0.0, phi: float = 0.0) -> PolicyExperiment:
     """Full comparative-steady-state + transition-path experiment for a change in total
     government spending from s_G_old to s_G_new, holding the composition fractions
-    (f_IG, f_GT) fixed."""
+    (f_IG, f_GC, f_GT) fixed."""
     distortionary = financing == "income_tax"
-    s_IG_old, s_GT_old = s_G_old * f_IG, s_G_old * f_GT
+    s_IG_old, s_GC_old, s_GT_old = s_G_old * f_IG, s_G_old * f_GC, s_G_old * f_GT
     theta_L = calibrate_theta_L(theta_N, delta, r, A, theta_G, s_IG_old, s_GT_old,
-                                 distortionary, N_target)
+                                 distortionary, N_target, s_GC=s_GC_old, phi=phi)
 
     ss_old = steady_state_for_policy(theta_N, delta, r, A, theta_G, s_G_old, f_IG, f_GT,
-                                       theta_L, distortionary)
+                                       theta_L, distortionary, f_GC=f_GC, phi=phi)
     ss_new = steady_state_for_policy(theta_N, delta, r, A, theta_G, s_G_new, f_IG, f_GT,
-                                       theta_L, distortionary)
+                                       theta_L, distortionary, f_GC=f_GC, phi=phi)
 
     dY = ss_new.Y - ss_old.Y
     dG = ss_new.G - ss_old.G

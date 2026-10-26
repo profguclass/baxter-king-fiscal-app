@@ -68,4 +68,27 @@ print(f"[theta_G=0.05, dynamic] long-run multiplier = {exp_pub.multiplier_long_r
       f"KG path[0:5] = {np.round(exp_pub.path.KG[:5], 3)}")
 
 print()
+
+# --- Government consumption Gᶜ valued in utility: u = ln(C + phi*Gᶜ) + theta_L ln(1-N) --
+# phi=0: Gᶜ is a pure drain, identical to zero-productivity public investment.
+for perm in (True, False):
+    e_ig = run_experiment(theta_N, delta, r, A, 0.0, s_G, s_G + dG_small, 1.0, 0.0,
+                          N_target, financing="lump_sum", permanent=perm)
+    e_gc = run_experiment(theta_N, delta, r, A, 0.0, s_G, s_G + dG_small, 0.0, 0.0,
+                          N_target, financing="lump_sum", permanent=perm, f_GC=1.0, phi=0.0)
+    assert np.isclose(e_gc.multiplier_impact, e_ig.multiplier_impact), "phi=0 Gᶜ should match a pure drain"
+    assert np.allclose(e_gc.path.Y, e_ig.path.Y), "phi=0 Gᶜ path should match a pure drain"
+# phi=1, lump-sum: Gᶜ is a perfect substitute for C, so C falls one-for-one and nothing else moves.
+for perm in (True, False):
+    e = run_experiment(theta_N, delta, r, A, 0.0, s_G, s_G + 0.05, 0.0, 0.0,
+                       N_target, financing="lump_sum", permanent=perm, f_GC=1.0, phi=1.0)
+    assert abs(e.multiplier_impact) < 1e-6 and np.allclose(e.path.Y, 0.0, atol=1e-6), \
+        "phi=1 lump-sum Gᶜ should leave output unchanged"
+print("[G_C in utility] long-run multiplier by phi (lump-sum, permanent):")
+for phi in (0.0, 0.25, 0.5, 0.75, 1.0):
+    e = run_experiment(theta_N, delta, r, A, 0.0, s_G, s_G + dG_small, 0.0, 0.0,
+                       N_target, financing="lump_sum", permanent=True, f_GC=1.0, phi=phi)
+    print(f"  phi={phi:.2f}: long-run {e.multiplier_long_run:+.3f}, impact {e.multiplier_impact:+.3f}")
+
+print()
 print("All checks passed.")
