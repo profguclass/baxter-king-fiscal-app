@@ -15,19 +15,19 @@ The model:
   Capital accum.:    K_{t+1}  = (1-delta) K_t  + I_t
                      KG_{t+1} = (1-delta) KG_t + IG_t
   Resource constr.:  Y_t = C_t + I_t + IG_t + GC_t         (transfers G_T are not resource-using)
-  Government budget: tau_t * Y_t = IG_t + GC_t + G_T,t,   tau_t = (IG_t+GC_t+G_T,t)/Y_t
-                      -- i.e. the tax rate always equals total government spending as a
-                      share of output, under BOTH financing rules below.
+  Government budget: T_t + tau_y,t*(taxed income) + tau_c,t*C_t = IG_t + GC_t + G_T,t
 
-Two financing rules (both use the SAME tax rate formula above; they differ only in
-whether that tax distorts the household's labor/capital margin):
+Three taxes, combined in a "tax mix": each raises a fixed share (f_LS, f_Y, f_C,
+summing to 1) of total government spending G_t every period:
 
-  * "lump_sum"      -- the tax is levied/rebated lump-sum: the household's after-tax
-                        factor income is just w_t*N_t + r_t*K_t (no (1-tau_t) wedge).
-                        Purely a resource / wealth effect.
-  * "income_tax"     -- the household's after-tax factor income is (1-tau_t)*(w_t*N_t +
-                        r_t*K_t): a proportional wedge on labor and capital income (this
-                        is the paper's original "distortionary"/GRH channel).
+  * lump-sum        -- T_t = f_LS*G_t per person. Purely a wealth effect: it enters
+                        no first-order condition.
+  * income tax      -- a rate tau_y,t on (optimizers') labor and capital income: a
+                        (1-tau_y) wedge on both the labor-leisure and the saving margin
+                        (the paper's original "distortionary"/GRH channel).
+  * consumption tax -- a rate tau_c,t on private consumption: consumers pay
+                        p_t = 1+tau_c,t per unit, a wedge on the labor-leisure margin
+                        only (a constant rate leaves the saving margin alone).
 
 Total government spending G_t is split into three shares of output that sum to the
 total government-spending ratio s_G = IG/Y + GC/Y + G_T/Y:
@@ -50,23 +50,42 @@ theta_L-implied hours) are pinned down, not absolute price levels.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 import numpy as np
 
-Financing = Literal["lump_sum", "income_tax"]
+Financing = Union[Literal["lump_sum", "income_tax", "consumption_tax"], tuple]
+
+
+def _tax_mix(financing) -> tuple:
+    """Shares (lump-sum, income tax, consumption tax) of revenue raised by each tax,
+    normalized to sum to 1. Also accepts a name ("lump_sum", "income_tax",
+    "consumption_tax") or a bool (True = pure income tax, False = pure lump-sum)."""
+    if isinstance(financing, (bool, np.bool_)):
+        return (0.0, 1.0, 0.0) if financing else (1.0, 0.0, 0.0)
+    if isinstance(financing, str):
+        return {"lump_sum": (1.0, 0.0, 0.0), "income_tax": (0.0, 1.0, 0.0),
+                "consumption_tax": (0.0, 0.0, 1.0)}[financing]
+    mix = tuple(float(v) for v in financing)
+    if len(mix) != 3 or min(mix) < 0 or sum(mix) <= 0:
+        raise ValueError("The tax mix needs three non-negative shares with a positive sum.")
+    return tuple(v / sum(mix) for v in mix)
 
 
 # --------------------------------------------------------------------------
 # 1. Supply side (prices and "great ratios"), with public capital KG.
 # --------------------------------------------------------------------------
 
-def _supply_side_impl(theta_N: float, delta: float, r: float, A: float, tau: float,
-                       theta_G: float, s_IG: float, distortionary: bool, N: float) -> dict:
+def _supply_side_impl(theta_N: float, delta: float, r: float, A: float, tau_y: float,
+                       theta_G: float, s_IG: float, N: float) -> dict:
+    """tau_y is the income-tax rate on capital income: steady state (1-tau_y)*MPK = r+delta."""
     theta_K = 1.0 - theta_N
-    tax_factor = (1.0 - tau) if distortionary else 1.0
+    tax_factor = 1.0 - tau_y
     if tax_factor <= 0:
-        raise ValueError("Invalid parameters: (1-tau) must be positive under Income Tax financing.")
+        raise ValueError("Invalid parameters: the income-tax rate must be below 100%.")
+    if theta_G > 0 and s_IG <= 0:
+        raise ValueError("With productive public capital (θ_G > 0), firms need public capital "
+                         "to produce: set public investment above 0% (item 5), or set θ_G = 0.")
 
     kappa = ((tax_factor * theta_K * A) / (r + delta)) ** (1.0 / (1.0 - theta_K))
     alpha = A * kappa ** theta_K  # will be rescaled by KG^theta_G below
@@ -115,14 +134,16 @@ class SteadyState:
     delta: float
     r: float
     A: float
-    tau: float
+    tau_y: float     # income-tax rate on optimizers' income (labor + capital)
+    tau_c: float     # consumption-tax rate on private consumption (both household types)
+    T: float         # lump-sum tax per person (everyone pays it)
     theta_L: float
     s_G: float       # total government spending share (IG+GC+G_T)/Y
     s_IG: float
     s_GC: float
     s_GT: float
     phi: float       # utility weight of GC in effective consumption C + phi*GC
-    distortionary: bool
+    tax_mix: tuple   # shares of revenue from (lump-sum, income tax, consumption tax)
     kappa: float
     alpha: float
     w: float
@@ -140,36 +161,57 @@ class SteadyState:
     IG: float
     GC: float
     GT: float
+    # Two household types (section 6): share lam of hand-to-mouth households.
+    # With lam=0 there is a single (optimizing) household: CO=C, NO=N, CH=NH=nan.
+    lam: float = 0.0
+    CO: float = float("nan")  # per-capita consumption / hours of optimizers
+    NO: float = float("nan")
+    CH: float = float("nan")  # per-capita consumption / hours of hand-to-mouth households
+    NH: float = float("nan")
 
     def as_dict(self) -> dict:
         return self.__dict__.copy()
 
 
 def calibrate_theta_L(theta_N: float, delta: float, r: float, A: float, theta_G: float,
-                       s_IG: float, s_GT: float, distortionary: bool,
-                       N_target: float, s_GC: float = 0.0, phi: float = 0.0) -> float:
+                       s_IG: float, s_GT: float, tax_mix,
+                       N_target: float, s_GC: float = 0.0, phi: float = 0.0,
+                       lam: float = 0.0) -> float:
     """Choose theta_L (weight on leisure) so that steady-state labor input equals
-    N_target, given the other parameters (Table 1 calibration strategy)."""
-    tau = s_IG + s_GC + s_GT
+    N_target, given the other parameters (Table 1 calibration strategy). tax_mix is
+    anything `_tax_mix` accepts."""
+    mix = _tax_mix(tax_mix)
+    if lam > 0:
+        return _calibrate_theta_L_tank(theta_N, delta, r, A, theta_G, s_IG, s_GC, s_GT,
+                                        mix, N_target, phi, lam)
+    s_G = s_IG + s_GC + s_GT
+    tau_y = mix[1] * s_G
     N = N_target
-    supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, distortionary, N)
+    supply = _supply_side_impl(theta_N, delta, r, A, tau_y, theta_G, s_IG, N)
     s_C = 1.0 - supply["s_I"] - s_IG - s_GC
     if s_C <= 0:
         raise ValueError("Government share too large: steady-state consumption share <= 0.")
     s_X = s_C + phi * s_GC  # effective-consumption share (C + phi*GC)/Y
-    theta_L = supply["tax_factor"] * theta_N * (1.0 - N) / (s_X * N)
+    wedge = (1.0 - tau_y) / (1.0 + mix[2] * s_G / s_C)  # after-tax wage / consumer price
+    theta_L = wedge * theta_N * (1.0 - N) / (s_X * N)
     if theta_L <= 0:
         raise ValueError("Implied theta_L <= 0; adjust N_target or the tax/spending settings.")
     return theta_L
 
 
 def steady_state(theta_N: float, delta: float, r: float, A: float, theta_G: float,
-                  s_IG: float, s_GT: float, distortionary: bool,
-                  theta_L: float, s_GC: float = 0.0, phi: float = 0.0) -> SteadyState:
-    """Exact steady state of the model for given parameters and government-spending
-    composition (s_IG, s_GC, s_GT).  tau = s_IG+s_GC+s_GT always."""
-    tau = s_IG + s_GC + s_GT
-    s_G = tau
+                  s_IG: float, s_GT: float, tax_mix,
+                  theta_L: float, s_GC: float = 0.0, phi: float = 0.0,
+                  lam: float = 0.0) -> SteadyState:
+    """Exact steady state of the model for given parameters, government-spending
+    composition (s_IG, s_GC, s_GT), and tax mix. With lam=0 the income tax raises
+    f_Y*G from income Y, so tau_y = f_Y*s_G, and tau_c = f_C*s_G/s_C."""
+    mix = _tax_mix(tax_mix)
+    if lam > 0:
+        return _steady_state_tank(theta_N, delta, r, A, theta_G, s_IG, s_GC, s_GT,
+                                   mix, theta_L, phi, lam)
+    s_G = s_IG + s_GC + s_GT
+    tau_y = mix[1] * s_G
     # Outer fixed point on N: when theta_G>0 and s_IG>0, the supply side (kappa,
     # alpha, KG) itself depends on N (see _supply_side_impl), while N in turn
     # depends on the supply side's implied consumption share s_C. When theta_G=0
@@ -177,14 +219,15 @@ def steady_state(theta_N: float, delta: float, r: float, A: float, theta_G: floa
     N = 0.3
     supply = None
     for _ in range(200):
-        supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, distortionary, N)
+        supply = _supply_side_impl(theta_N, delta, r, A, tau_y, theta_G, s_IG, N)
         s_I = supply["s_I"]
         s_C = 1.0 - s_I - s_IG - s_GC
         if s_C <= 0:
             raise ValueError("Government share too large: steady-state consumption share <= 0.")
-        tax_factor = supply["tax_factor"]
+        tau_c = mix[2] * s_G / s_C
+        wedge = (1.0 - tau_y) / (1.0 + tau_c)  # after-tax wage / consumer price
         s_X = s_C + phi * s_GC
-        N_new = tax_factor * theta_N / (theta_L * s_X + tax_factor * theta_N)
+        N_new = wedge * theta_N / (theta_L * s_X + wedge * theta_N)
         if not (0 < N_new < 1):
             raise ValueError(f"Implied labor supply N={N_new:.3f} is outside (0,1).")
         if abs(N_new - N) < 1e-12:
@@ -205,22 +248,139 @@ def steady_state(theta_N: float, delta: float, r: float, A: float, theta_G: floa
 
     return SteadyState(
         theta_N=theta_N, theta_K=supply["theta_K"], theta_G=theta_G, delta=delta, r=r, A=A,
-        tau=tau, theta_L=theta_L, s_G=s_G, s_IG=s_IG, s_GC=s_GC, s_GT=s_GT, phi=phi,
-        distortionary=distortionary, kappa=supply["kappa"], alpha=supply["alpha"],
+        tau_y=tau_y, tau_c=tau_c, T=mix[0] * G, theta_L=theta_L, s_G=s_G, s_IG=s_IG,
+        s_GC=s_GC, s_GT=s_GT, phi=phi, tax_mix=mix, kappa=supply["kappa"], alpha=supply["alpha"],
         w=supply["w"], q=supply["q"], s_I=s_I, s_C=s_C, N=N, L=L, Y=Y, K=K, KG=KG, C=C, I=I,
-        G=G, IG=IG, GC=GC, GT=GT,
+        G=G, IG=IG, GC=GC, GT=GT, CO=C, NO=N,
     )
 
 
 def steady_state_for_policy(theta_N: float, delta: float, r: float, A: float, theta_G: float,
                              s_G_total: float, f_IG: float, f_GT: float,
-                             theta_L: float, distortionary: bool,
-                             f_GC: float = 0.0, phi: float = 0.0) -> SteadyState:
+                             theta_L: float, tax_mix,
+                             f_GC: float = 0.0, phi: float = 0.0, lam: float = 0.0) -> SteadyState:
     """Steady state for a given total government-spending ratio s_G_total, split
     into fixed composition fractions f_IG+f_GC+f_GT=1 of that total."""
     s_IG, s_GC, s_GT = s_G_total * f_IG, s_G_total * f_GC, s_G_total * f_GT
-    return steady_state(theta_N, delta, r, A, theta_G, s_IG, s_GT, distortionary, theta_L,
-                        s_GC=s_GC, phi=phi)
+    return steady_state(theta_N, delta, r, A, theta_G, s_IG, s_GT, tax_mix, theta_L,
+                        s_GC=s_GC, phi=phi, lam=lam)
+
+
+# --------------------------------------------------------------------------
+# 2b. Two household types (lam > 0)
+#
+#   Taxes: each of the three raises a fixed share (f_LS, f_Y, f_C) of G every period.
+#     Lump-sum:     T = f_LS*G per person (everyone pays it).
+#     Income tax:   tau_y = f_Y*G / (optimizers' income) = f_Y*G / (Y - lam*w*N^H).
+#     Consumption:  tau_c = f_C*G / C on everyone's private consumption; p = 1+tau_c.
+#   * Hand-to-mouth (share lam): no capital, consume all income each period, pay no
+#     income tax, receive ALL cash welfare G_T (G_T/lam each):
+#       p*C^H = w*N^H + G_T/lam - T,   theta_L*(C^H + phi*GC)/(1-N^H) = w/p
+#   * Optimizers (share 1-lam): own all capital, receive no cash welfare:
+#       theta_L*(C^O + phi*GC)/(1-N^O) = (1-tau_y)*w/p,  Euler in (C^O + phi*GC)*p.
+#   Aggregates:  C = lam*C^H + (1-lam)*C^O,  N = lam*N^H + (1-lam)*N^O.
+# With lam=0 the code above (the representative-household model) is used instead.
+# --------------------------------------------------------------------------
+
+def _htm_choice(w: float, GT: float, GC: float, T_ls: float, lam: float,
+                theta_L: float, phi: float, p: float = 1.0) -> tuple[float, float]:
+    """Hand-to-mouth household's static choice: maximize ln(C+phi*GC) + theta_L*ln(1-N)
+    subject to p*C = w*N + GT/lam - T_ls, with p = 1 + consumption-tax rate. Returns
+    (N^H, C^H); N^H is 0 (corner) if non-labor resources are so large the household
+    would rather not work."""
+    m = GT / lam - T_ls  # non-labor income per hand-to-mouth household
+    NH = max(0.0, (w - theta_L * (m + p * phi * GC)) / (w * (1.0 + theta_L)))
+    return NH, (w * NH + m) / p
+
+
+def _tank_solve(theta_N, delta, r, A, theta_G, s_IG, s_GC, s_GT, tax_mix,
+                theta_L, phi, lam) -> dict:
+    """Unvalidated steady state of the two-household model: for a given income-tax rate
+    tau_y, aggregate hours N solve lam*N^H(N) + (1-lam)*N^O(N) = N by bisection (the
+    left side falls as N rises); an outer damped iteration then updates tau_y. In a
+    steady state C = s_C*Y is known, so the consumption-tax rate is f_C*s_G/s_C."""
+    s_G = s_IG + s_GC + s_GT
+    f_LS, f_Y, f_C = tax_mix
+
+    def given_N(N, tau_y):
+        supply = _supply_side_impl(theta_N, delta, r, A, tau_y, theta_G, s_IG, N)
+        Y = supply["alpha"] * N
+        w = supply["w"]
+        s_C = 1.0 - supply["s_I"] - s_IG - s_GC
+        p = 1.0 + f_C * s_G / max(s_C, 1e-12)
+        NH, CH = _htm_choice(w, s_GT * Y, s_GC * Y, f_LS * s_G * Y, lam, theta_L, phi, p)
+        CO = (s_C * Y - lam * CH) / (1.0 - lam)
+        NO = 1.0 - theta_L * p * (CO + phi * s_GC * Y) / (supply["tax_factor"] * w)
+        return dict(supply=supply, N=N, tau_y=tau_y, p=p, Y=Y, s_C=s_C, NH=NH, CH=CH,
+                    CO=CO, NO=NO, resid=lam * NH + (1.0 - lam) * NO - N)
+
+    tau_y = f_Y * s_G
+    for _ in range(500):
+        lo, hi = 1e-9, 1.0 - 1e-9
+        for _ in range(100):
+            mid = 0.5 * (lo + hi)
+            if given_N(mid, tau_y)["resid"] > 0:
+                lo = mid
+            else:
+                hi = mid
+        sol = given_N(0.5 * (lo + hi), tau_y)
+        if f_Y == 0:
+            break
+        tau_new = f_Y * s_G * sol["Y"] / (sol["Y"] - lam * sol["supply"]["w"] * sol["NH"])
+        if abs(tau_new - tau_y) < 1e-14:
+            break
+        tau_y = 0.5 * (tau_y + tau_new)
+    sol["tau_y"] = tau_y
+    return sol
+
+
+def _steady_state_tank(theta_N, delta, r, A, theta_G, s_IG, s_GC, s_GT, tax_mix,
+                       theta_L, phi, lam) -> SteadyState:
+    if not (0 < lam < 1):
+        raise ValueError("The hand-to-mouth share must be between 0 and 1.")
+    sol = _tank_solve(theta_N, delta, r, A, theta_G, s_IG, s_GC, s_GT, tax_mix,
+                      theta_L, phi, lam)
+    supply, N, Y = sol["supply"], sol["N"], sol["Y"]
+    if sol["s_C"] <= 0:
+        raise ValueError("Government share too large: steady-state consumption share <= 0.")
+    if not (0 < sol["NO"] < 1):
+        raise ValueError(f"Implied optimizer labor supply N={sol['NO']:.3f} is outside (0,1).")
+    if sol["CO"] <= 0 or sol["CH"] <= 0:
+        raise ValueError("Implied consumption of one household type is <= 0; "
+                         "try a different hand-to-mouth share or composition.")
+    if not (0 <= sol["tau_y"] < 1):
+        raise ValueError("Implied income-tax rate is outside [0,1).")
+    s_G = s_IG + s_GC + s_GT
+    return SteadyState(
+        theta_N=theta_N, theta_K=supply["theta_K"], theta_G=theta_G, delta=delta, r=r, A=A,
+        tau_y=sol["tau_y"], tau_c=sol["p"] - 1.0, T=tax_mix[0] * s_G * Y, theta_L=theta_L,
+        s_G=s_G, s_IG=s_IG, s_GC=s_GC, s_GT=s_GT, phi=phi, tax_mix=tax_mix,
+        kappa=supply["kappa"], alpha=supply["alpha"], w=supply["w"], q=supply["q"],
+        s_I=supply["s_I"], s_C=sol["s_C"], N=N, L=1.0 - N, Y=Y, K=supply["kappa"] * N,
+        KG=supply["KG"] * N, C=sol["s_C"] * Y, I=supply["s_I"] * Y, G=s_G * Y,
+        IG=s_IG * Y, GC=s_GC * Y, GT=s_GT * Y,
+        lam=lam, CO=sol["CO"], NO=sol["NO"], CH=sol["CH"], NH=sol["NH"],
+    )
+
+
+def _calibrate_theta_L_tank(theta_N, delta, r, A, theta_G, s_IG, s_GC, s_GT, tax_mix,
+                             N_target, phi, lam) -> float:
+    """Bisection on log(theta_L): aggregate steady-state hours fall as theta_L rises."""
+    lo, hi = np.log(1e-4), np.log(1e4)
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        try:
+            N = _tank_solve(theta_N, delta, r, A, theta_G, s_IG, s_GC, s_GT, tax_mix,
+                            np.exp(mid), phi, lam)["N"]
+        except ValueError:
+            N = 0.0  # infeasible region: treat as "too little work" (theta_L too high)
+        if N > N_target:
+            lo = mid
+        else:
+            hi = mid
+        if hi - lo < 1e-13:
+            break
+    return float(np.exp(0.5 * (lo + hi)))
 
 
 # --------------------------------------------------------------------------
@@ -238,10 +398,17 @@ def _log_linear_coeffs(ss: SteadyState) -> dict:
     The labor-leisure condition and the Euler equation are in effective consumption
     X = C + phi*GC, whose log-deviation is x_hat = a*c_hat + b*g_hat (GC moves with
     total G under a fixed composition); a=1, b=0 recovers the model without GC.
+
+    Covers the one-household model (lam=0) with pure lump-sum or pure income-tax
+    financing only; it is kept as an analytic check on `_tank_linearization`, which
+    `simulate_transition` uses for every case.
     """
+    if ss.tax_mix not in ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
+        raise ValueError("Analytic coefficients cover pure lump-sum or pure income-tax financing only.")
+    distortionary = ss.tax_mix[1] == 1.0
     theta_N, theta_K, theta_G = ss.theta_N, ss.theta_K, ss.theta_G
     L = ss.L
-    tau = ss.tau
+    tau = ss.tau_y
     s_C, s_I, s_IG, s_GC = ss.s_C, ss.s_I, ss.s_IG, ss.s_GC
     delta, r = ss.delta, ss.r
 
@@ -250,7 +417,7 @@ def _log_linear_coeffs(ss: SteadyState) -> dict:
     b = ss.phi * s_GC / s_X
 
     D = 1.0 - theta_N * L
-    if ss.distortionary:
+    if distortionary:
         # See derivation note: y_hat*(D - theta_N*L*tau/(1-tau)) = theta_K*k_hat +
         # theta_G*kg_hat - theta_N*L*x_hat - theta_N*L*tau/(1-tau)*g_hat.
         Dp = D - theta_N * L * tau / (1.0 - tau)
@@ -294,6 +461,95 @@ def _log_linear_coeffs(ss: SteadyState) -> dict:
                 Phi_kk=Phi_kk, Phi_kc=Phi_kc, Phi_kg=Phi_kg, Phi_k_kg=Phi_k_kg)
 
 
+def _tank_eval(ss: SteadyState, k: float, c: float, g: float, kg: float) -> dict:
+    """Static block plus capital accumulation and the Euler return, at log-deviations
+    (k, c=optimizer consumption, g, kg) from `ss`, in levels; works for lam=0 too.
+    Solves aggregate hours N by Newton's method on lam*N^H + (1-lam)*N^O = N, and the
+    consumer price p = 1+tau_c by bisection on tau_c*C = f_C*G."""
+    lam, theta_L, phi = ss.lam, ss.theta_L, ss.phi
+    f_LS, f_Y, f_C = ss.tax_mix
+    K, CO, G, KG = ss.K * np.exp(k), ss.CO * np.exp(c), ss.G * np.exp(g), ss.KG * np.exp(kg)
+    f_IG, f_GC, f_GT = (ss.s_IG / ss.s_G, ss.s_GC / ss.s_G, ss.s_GT / ss.s_G) if ss.s_G > 0 else (0.0, 0.0, 0.0)
+    GC, GT = f_GC * G, f_GT * G
+    T_ls = f_LS * G
+    kg_factor = KG ** ss.theta_G if (ss.theta_G > 0 and KG > 0) else 1.0
+
+    def block(N):
+        Y = ss.A * K ** ss.theta_K * kg_factor * N ** ss.theta_N
+        w = ss.theta_N * Y / N
+        if lam > 0:
+            def htm(p):
+                return _htm_choice(w, GT, GC, T_ls, lam, theta_L, phi, p)
+            p = 1.0
+            if f_C > 0:
+                # (p-1)*C = f_C*G, with C = lam*C^H(p) + (1-lam)*C^O; p <= hi since C^H >= 0.
+                lo, hi = 1.0, 1.0 + f_C * G / ((1.0 - lam) * CO)
+                for _ in range(100):
+                    p = 0.5 * (lo + hi)
+                    if (p - 1.0) * (lam * htm(p)[1] + (1.0 - lam) * CO) < f_C * G:
+                        lo = p
+                    else:
+                        hi = p
+            NH, CH = htm(p)
+        else:
+            p, NH, CH = 1.0 + f_C * G / CO, 0.0, 0.0
+        tau_y = f_Y * G / (Y - lam * w * NH)
+        NO = 1.0 - theta_L * p * (CO + phi * GC) / ((1.0 - tau_y) * w)
+        return Y, w, NH, CH, NO, tau_y, p, lam * NH + (1.0 - lam) * NO - N
+
+    N = ss.N
+    for _ in range(100):
+        resid = block(N)[-1]
+        if abs(resid) < 1e-15:
+            break
+        h = 1e-7 * N
+        N -= resid / ((block(N + h)[-1] - resid) / h)
+    Y, w, NH, CH, NO, tau_y, p, _ = block(N)
+    C = lam * CH + (1.0 - lam) * CO
+    I = Y - C - (f_IG + f_GC) * G
+    return dict(Y=Y, N=N, NH=NH, CH=CH, NO=NO, C=C, I=I, w=w, tau_y=tau_y, p=p,
+                Knext=(1.0 - ss.delta) * K + I,
+                R=1.0 + (1.0 - tau_y) * ss.theta_K * Y / K - ss.delta)
+
+
+def _tank_linearization(ss: SteadyState) -> dict:
+    """Numerical first-order coefficients of the model around `ss` (any lam and tax mix),
+    in the form `_solve_saddle_path` uses, plus a gradient row (w.r.t. k, c, g, kg) for
+    each reported variable's log-deviation.
+
+    Euler equation in logs: x_t + pi_t = x_{t+1} + pi_{t+1} - rho_{t+1}, with x the
+    optimizers' effective consumption, pi the consumer price 1+tau_c, rho the gross
+    after-tax return; pi and rho are linear in the state through their gradients."""
+    base = dict(k=0.0, c=0.0, g=0.0, kg=0.0)
+    h = 1e-6
+    grads = {}
+    for name in ("k", "c", "g", "kg"):
+        up, dn = dict(base), dict(base)
+        up[name], dn[name] = h, -h
+        e_up, e_dn = _tank_eval(ss, **up), _tank_eval(ss, **dn)
+        for var in ("Y", "N", "NO", "C", "I", "Knext", "R", "p", "CH", "NH"):
+            if var in ("CH", "NH") and ss.lam == 0:
+                continue  # no hand-to-mouth households
+            if var == "NH" and ss.NH <= 0:
+                continue  # corner N^H=0: hours stay at 0 for small deviations
+            ref = {"Knext": ss.K, "R": 1.0 + ss.r, "p": 1.0 + ss.tau_c}.get(var)
+            ref = getattr(ss, var) if ref is None else ref
+            grads.setdefault(var, np.zeros(4))[("k", "c", "g", "kg").index(name)] = \
+                (np.log(e_up[var] / ref) - np.log(e_dn[var] / ref)) / (2 * h)
+
+    X_O = ss.CO + ss.phi * ss.GC
+    a, b = ss.CO / X_O, ss.phi * ss.GC / X_O
+    Fk, Fc, Fg, Fkg = grads["R"]
+    Pk, Pc, Pg, Pkg = grads["p"]
+    Phi_kk, Phi_kc, Phi_kg, Phi_k_kg = grads["Knext"]
+    A0 = a + Pc  # coefficient on c_t
+    return dict(a=a, b=b, grads=grads,
+                coef_c=(a + Pc - Fc) / A0, coef_k=(Pk - Fk) / A0, coef_g=(b + Pg - Fg) / A0,
+                coef_kg=(Pkg - Fkg) / A0, coef_g0=-(b + Pg) / A0,
+                coef_k0=-Pk / A0, coef_kg0=-Pkg / A0,
+                Phi_kk=Phi_kk, Phi_kc=Phi_kc, Phi_kg=Phi_kg, Phi_k_kg=Phi_k_kg)
+
+
 def _kg_hat_path(delta: float, g_full: np.ndarray, kg0: float) -> np.ndarray:
     """Public capital's own law of motion decouples from the K/C saddle-path system:
     kg_hat_{t+1} = (1-delta)*kg_hat_t + delta*g_hat_t, given the (exogenous) g_hat path.
@@ -311,12 +567,14 @@ def _kg_hat_path(delta: float, g_full: np.ndarray, kg0: float) -> np.ndarray:
 def _solve_saddle_path(Phi_kk: float, Phi_kc: float, Phi_kg: float, Phi_k_kg: float,
                         coef_c: float, coef_k: float, coef_g: float, coef_kg: float,
                         coef_g0: float,
-                        k0: float, g_full: np.ndarray, kg_full: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+                        k0: float, g_full: np.ndarray, kg_full: np.ndarray,
+                        coef_k0: float = 0.0, coef_kg0: float = 0.0) -> tuple[np.ndarray, np.ndarray]:
     """Exact saddle-path solution of the linear perfect-foresight system
 
         k_hat_{t+1} = Phi_kk*k_hat_t + Phi_kc*c_hat_t + Phi_kg*g_hat_t + Phi_k_kg*kg_hat_t
         c_hat_t     = coef_c*c_hat_{t+1} + coef_k*k_hat_{t+1} + coef_g*g_hat_{t+1}
-                      + coef_kg*kg_hat_{t+1} + coef_g0*g_hat_t
+                      + coef_kg*kg_hat_{t+1} + coef_g0*g_hat_t + coef_k0*k_hat_t
+                      + coef_kg0*kg_hat_t
 
     via eigen-decomposition (King-Plosser-Rebelo / Blanchard-Kahn method), for T periods,
     with kg_hat_t supplied exogenously as a length-(T+1) array (it is solved separately --
@@ -332,7 +590,7 @@ def _solve_saddle_path(Phi_kk: float, Phi_kc: float, Phi_kg: float, Phi_k_kg: fl
     numerically safe since |lambda_stable| < 1.
     """
     M = np.array([[Phi_kk, Phi_kc],
-                  [-coef_k * Phi_kk / coef_c, (1.0 - coef_k * Phi_kc) / coef_c]])
+                  [-(coef_k * Phi_kk + coef_k0) / coef_c, (1.0 - coef_k * Phi_kc) / coef_c]])
     vals, vecs = np.linalg.eig(M)
     if np.max(np.abs(vals.imag)) > 1e-8:
         raise RuntimeError("Complex eigenvalues encountered; parameters imply oscillatory "
@@ -354,7 +612,7 @@ def _solve_saddle_path(Phi_kk: float, Phi_kc: float, Phi_kg: float, Phi_k_kg: fl
     kg_next = kg_full[1:T + 1]  # kg_hat_{t+1} for t=0..T-1
     Nk = Phi_kg * g_ext[:T] + Phi_k_kg * kg_now
     Nc = (-coef_k * (Phi_kg * g_ext[:T] + Phi_k_kg * kg_now) - coef_g * g_ext[1:T + 1]
-          - coef_kg * kg_next - coef_g0 * g_ext[:T]) / coef_c
+          - coef_kg * kg_next - coef_g0 * g_ext[:T] - coef_kg0 * kg_now) / coef_c
     N = np.stack([Nk, Nc], axis=1)
     n = N @ Vinv.T  # forcing rotated into the eigen-basis: n[:,0]=stable comp., n[:,1]=unstable
 
@@ -385,6 +643,14 @@ class TransitionPath:
     W: np.ndarray
     G: np.ndarray
     r_bp: np.ndarray  # real interest rate, deviation in basis points (annualized)
+    # Two household types only (lam > 0); None otherwise. Per-capita, % deviations.
+    CO: Optional[np.ndarray] = None
+    CH: Optional[np.ndarray] = None
+    NO: Optional[np.ndarray] = None
+    NH: Optional[np.ndarray] = None
+    # Log-deviations of (k, optimizers' c, g, kg) from the steady state the path is
+    # linearized around, shape (4, T): the input to `household_outcomes`.
+    state: Optional[np.ndarray] = None
 
 
 def simulate_transition(ss_ref: SteadyState, g_path: np.ndarray,
@@ -392,33 +658,32 @@ def simulate_transition(ss_ref: SteadyState, g_path: np.ndarray,
     """Simulate the perfect-foresight transition path in log-deviations from steady
     state `ss_ref`, given an exogenous path of government-spending log-deviations
     `g_path` (padded with zeros afterwards) and initial capital log-deviations k0/kg0."""
-    coeffs = _log_linear_coeffs(ss_ref)
-    y_k, y_kg, y_c, y_g, s_GR = coeffs["y_k"], coeffs["y_kg"], coeffs["y_c"], coeffs["y_g"], coeffs["s_GR"]
+    tank = ss_ref.lam > 0
+    coeffs = _tank_linearization(ss_ref)
 
     g_full = np.zeros(T_sim)
     n_g = min(len(g_path), T_sim)
     g_full[:n_g] = g_path[:n_g]
 
-    L = ss_ref.L
-    tau = ss_ref.tau
-
     kg_full_ext = _kg_hat_path(ss_ref.delta, g_full, kg0)  # length T_sim+1
     k, c = _solve_saddle_path(coeffs["Phi_kk"], coeffs["Phi_kc"], coeffs["Phi_kg"], coeffs["Phi_k_kg"],
                                coeffs["coef_c"], coeffs["coef_k"], coeffs["coef_g"], coeffs["coef_kg"],
-                               coeffs["coef_g0"], k0, g_full, kg_full_ext)
+                               coeffs["coef_g0"], k0, g_full, kg_full_ext,
+                               coef_k0=coeffs["coef_k0"], coef_kg0=coeffs["coef_kg0"])
     kg_full = kg_full_ext[:T_sim]
-    y = y_k * k + y_kg * kg_full + y_c * c + y_g * g_full
-    x = coeffs["a"] * c + coeffs["b"] * g_full  # effective consumption C + phi*GC
+    x = coeffs["a"] * c + coeffs["b"] * g_full  # effective consumption C + phi*GC (optimizers)
 
-    if ss_ref.distortionary:
-        n = L * (y - x) - (L * tau / (1.0 - tau)) * (g_full - y)
-    else:
-        n = L * (y - x)
+    state = np.vstack([k, c, g_full, kg_full])
+    gr = coeffs["grads"]
+    y, n, i, c_agg = gr["Y"] @ state, gr["N"] @ state, gr["I"] @ state, gr["C"] @ state
+    x = x + gr["p"] @ state  # marginal utility of a unit of spending: (C^O + phi*GC)*p
+    extra = {}
+    if tank:
+        extra = dict(CO=100.0 * c, CH=100.0 * (gr["CH"] @ state), NO=100.0 * (gr["NO"] @ state),
+                     NH=100.0 * (gr["NH"] @ state) if "NH" in gr else np.zeros(T_sim))
     w = y - n  # wage = MPL, log-deviation
 
-    i = (y - ss_ref.s_C * c - s_GR * g_full) / ss_ref.s_I
-
-    c_pct = 100.0 * c
+    c_pct = 100.0 * c_agg
     y_pct = 100.0 * y
     i_pct = 100.0 * i
     k_pct = 100.0 * k
@@ -433,7 +698,7 @@ def simulate_transition(ss_ref: SteadyState, g_path: np.ndarray,
 
     years = np.arange(T_sim)
     return TransitionPath(years=years, Y=y_pct, C=c_pct, I=i_pct, K=k_pct, KG=kg_pct, N=n_pct,
-                           W=w_pct, G=g_pct, r_bp=r_dev_bp)
+                           W=w_pct, G=g_pct, r_bp=r_dev_bp, state=state, **extra)
 
 
 # --------------------------------------------------------------------------
@@ -453,19 +718,22 @@ def run_experiment(theta_N: float, delta: float, r: float, A: float, theta_G: fl
                     s_G_old: float, s_G_new: float, f_IG: float, f_GT: float,
                     N_target: float, financing: Financing,
                     permanent: bool, duration_years: int = 4, T_sim: int = 300,
-                    f_GC: float = 0.0, phi: float = 0.0) -> PolicyExperiment:
+                    f_GC: float = 0.0, phi: float = 0.0, lam: float = 0.0,
+                    theta_L: Optional[float] = None) -> PolicyExperiment:
     """Full comparative-steady-state + transition-path experiment for a change in total
     government spending from s_G_old to s_G_new, holding the composition fractions
-    (f_IG, f_GC, f_GT) fixed."""
-    distortionary = financing == "income_tax"
-    s_IG_old, s_GC_old, s_GT_old = s_G_old * f_IG, s_G_old * f_GC, s_G_old * f_GT
-    theta_L = calibrate_theta_L(theta_N, delta, r, A, theta_G, s_IG_old, s_GT_old,
-                                 distortionary, N_target, s_GC=s_GC_old, phi=phi)
+    (f_IG, f_GC, f_GT) fixed. theta_L is calibrated so that hours hit N_target at
+    s_G_old, unless a theta_L is given."""
+    mix = _tax_mix(financing)
+    if theta_L is None:
+        s_IG_old, s_GC_old, s_GT_old = s_G_old * f_IG, s_G_old * f_GC, s_G_old * f_GT
+        theta_L = calibrate_theta_L(theta_N, delta, r, A, theta_G, s_IG_old, s_GT_old,
+                                     mix, N_target, s_GC=s_GC_old, phi=phi, lam=lam)
 
     ss_old = steady_state_for_policy(theta_N, delta, r, A, theta_G, s_G_old, f_IG, f_GT,
-                                       theta_L, distortionary, f_GC=f_GC, phi=phi)
+                                       theta_L, mix, f_GC=f_GC, phi=phi, lam=lam)
     ss_new = steady_state_for_policy(theta_N, delta, r, A, theta_G, s_G_new, f_IG, f_GT,
-                                       theta_L, distortionary, f_GC=f_GC, phi=phi)
+                                       theta_L, mix, f_GC=f_GC, phi=phi, lam=lam)
 
     dY = ss_new.Y - ss_old.Y
     dG = ss_new.G - ss_old.G
@@ -508,10 +776,119 @@ def run_experiment(theta_N: float, delta: float, r: float, A: float, theta_G: fl
         path.G = np.full_like(path.G, 100.0 * np.log(ss_new.G / ss_old.G))
     else:
         path.G = shift(path.G, ss_ref.G, ss_old.G)
+    if lam > 0:
+        path.CO = shift(path.CO, ss_ref.CO, ss_old.CO)
+        path.CH = shift(path.CH, ss_ref.CH, ss_old.CH)
+        path.NO = shift(path.NO, ss_ref.NO, ss_old.NO)
+        # N^H can sit at the corner 0, where a % deviation is undefined.
+        path.NH = shift(path.NH, ss_ref.NH, ss_old.NH) if (ss_ref.NH > 0 and ss_old.NH > 0) \
+            else np.zeros_like(path.NH)
 
     return PolicyExperiment(ss_old=ss_old, ss_new=ss_new, path=path,
                              multiplier_long_run=multiplier_long_run,
                              multiplier_impact=multiplier_impact)
+
+
+# --------------------------------------------------------------------------
+# 4b. Policy performance: incomes, inequality, and welfare along a path
+# --------------------------------------------------------------------------
+
+def household_outcomes(ss: SteadyState, state: np.ndarray) -> dict:
+    """Levels of output, prices, and each household type's incomes, consumption, and
+    hours along a path. `state` holds log-deviations (k, optimizers' c, g, kg) from
+    `ss`, one column per year (TransitionPath.state); each year's static block is solved
+    exactly. Incomes are per person: market labor and capital income (before tax), and
+    disposable income = the right-hand side of each household's budget constraint
+    (spent on consumption including the consumption tax, and on investment).
+    With lam=0 everyone is an optimizer, who then also receives the cash welfare."""
+    lam = ss.lam
+    rows = []
+    for k, c, g, kg in np.asarray(state).T:
+        e = _tank_eval(ss, k, c, g, kg)
+        K, GC, GT = ss.K * np.exp(k), ss.GC * np.exp(g), ss.GT * np.exp(g)
+        tau = e["tau_y"]
+        T_ls = ss.tax_mix[0] * ss.G * np.exp(g)
+        R = ss.theta_K * e["Y"] / K  # rental rate of capital
+        KO = K / (1.0 - lam)  # capital per optimizer
+        rows.append(dict(
+            Y=e["Y"], N=e["N"], w=e["w"], R=R, tau_y=tau, tau_c=e["p"] - 1.0, T=T_ls, GC=GC,
+            CO=ss.CO * np.exp(c), NO=e["NO"],
+            CH=e["CH"] if lam > 0 else np.nan, NH=e["NH"] if lam > 0 else np.nan,
+            labor=e["w"] * e["N"], capital=R * K,
+            labor_O=e["w"] * e["NO"], capital_O=R * KO,
+            labor_H=e["w"] * e["NH"] if lam > 0 else np.nan,
+            income_O=(1.0 - tau) * (e["w"] * e["NO"] + R * KO) - T_ls + (GT if lam == 0 else 0.0),
+            income_H=e["w"] * e["NH"] + GT / lam - T_ls if lam > 0 else np.nan,
+        ))
+    out = {key: np.array([row[key] for row in rows]) for key in rows[0]}
+    out["lam"] = lam
+    return out
+
+
+def two_group_gini(lam: float, y_H: np.ndarray, y_O: np.ndarray) -> np.ndarray:
+    """Gini coefficient of a population with two groups (shares lam and 1-lam) whose
+    members have incomes y_H and y_O: lam*(1-lam)*|y_O - y_H| / mean income."""
+    mean = lam * y_H + (1.0 - lam) * y_O
+    return lam * (1.0 - lam) * np.abs(y_O - y_H) / mean
+
+
+def period_utility(C, N, GC, theta_L: float, phi: float):
+    """u = ln(C + phi*GC) + theta_L*ln(1-N), the same for both household types."""
+    return np.log(C + phi * GC) + theta_L * np.log(1.0 - N)
+
+
+def welfare_gains(bench: dict, out: dict, beta: float, theta_L: float, phi: float,
+                  long_run: bool = False) -> dict:
+    """Consumption-equivalent welfare gains, in %, of the path `out` relative to staying
+    at the steady state `bench` forever (both from `household_outcomes`, `bench` with a
+    single column): the permanent % change in benchmark private consumption that would
+    give a household the same lifetime utility as the path. Lifetime utility discounts
+    with beta and holds the path's last year forever; long_run=True uses that last year
+    only (steady state vs steady state). Returns gains for optimizers "O", hand-to-mouth
+    households "H" (when both have lam>0), and "all": one common % change for everyone
+    that gives the same population-weighted (with out's lam) lifetime utility."""
+    types = ["O", "H"] if (out["lam"] > 0 and bench["lam"] > 0) else ["O"]
+
+    def avg_u(i):  # (1-beta) * lifetime utility, i.e. its per-year equivalent
+        u = period_utility(out["C" + i], out["N" + i], out["GC"], theta_L, phi)
+        if long_run:
+            return u[-1]
+        disc = beta ** np.arange(len(u))
+        return (1.0 - beta) * np.sum(disc * u) + beta ** len(u) * u[-1]
+
+    def bench_u(i, mu):
+        return period_utility(bench["C" + i][0] * (1.0 + mu), bench["N" + i][0],
+                              bench["GC"][0], theta_L, phi)
+
+    target = {i: avg_u(i) for i in types}
+    gains = {}
+    for i in types:
+        x = np.exp(target[i] - theta_L * np.log(1.0 - bench["N" + i][0])) - phi * bench["GC"][0]
+        gains[i] = 100.0 * (x / bench["C" + i][0] - 1.0)
+    if len(types) == 1:
+        gains["all"] = gains["O"]
+        return gains
+
+    lam = out["lam"]
+    goal = lam * target["H"] + (1.0 - lam) * target["O"]
+    if not np.isfinite(goal):  # some year of the path has no valid allocation
+        gains["all"] = np.nan
+        return gains
+
+    def excess(mu):
+        return lam * bench_u("H", mu) + (1.0 - lam) * bench_u("O", mu) - goal
+
+    lo, hi = -1.0 + 1e-12, 1.0
+    while excess(hi) < 0:
+        hi *= 2.0
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        if excess(mid) < 0:
+            lo = mid
+        else:
+            hi = mid
+    gains["all"] = 100.0 * 0.5 * (lo + hi)
+    return gains
 
 
 # --------------------------------------------------------------------------
@@ -555,8 +932,7 @@ def public_investment_long_run(theta_N: float, delta: float, r: float, A: float,
 
     # Calibrate theta_L once, at theta_G=0, so labor hits N_target under the
     # baseline (s_IG + s_other) total government share.
-    tau0 = s_IG + s_other
-    supply0 = _supply_side_impl(theta_N, delta, r, A, tau0, 0.0, s_IG, False, N_target)
+    supply0 = _supply_side_impl(theta_N, delta, r, A, 0.0, 0.0, s_IG, N_target)
     s_C0 = 1.0 - supply0["s_I"] - s_IG - s_other
     if s_C0 <= 0:
         raise ValueError("Government share too large: steady-state consumption share <= 0.")
@@ -593,7 +969,7 @@ def _public_capital_output(theta_N, theta_K, delta, r, A, s_other, theta_L, thet
     N = 0.3
     supply = None
     for _ in range(200):
-        supply = _supply_side_impl(theta_N, delta, r, A, tau, theta_G, s_IG, False, N)
+        supply = _supply_side_impl(theta_N, delta, r, A, 0.0, theta_G, s_IG, N)
         s_I = supply["s_I"]
         s_C = 1.0 - s_I - s_IG - s_other
         if s_C <= 0:
