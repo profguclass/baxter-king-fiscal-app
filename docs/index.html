@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fiscal Policy in General Equilibrium</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.75.0/build/stlite.css" />
+</head>
+<body>
+  <div id="root">Loading the model (first visit downloads the Python runtime, ~20-40 MB)...</div>
+  <script src="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.75.0/build/stlite.js"></script>
+  <script>
+    stlite.mount({
+      requirements: ["numpy", "pandas", "plotly"],
+      entrypoint: "app.py",
+      files: {
+        "app.py": { url: "./app.py" },
+        "fiscal_model.py": { url: "./fiscal_model.py" },
+        "kgu_emblem.png": { url: "./kgu_emblem.png" }
+      },
+    }, document.getElementById("root"));
+  </script>
+</body>
+</html>
