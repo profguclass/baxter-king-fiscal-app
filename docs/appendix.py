@@ -9,6 +9,16 @@ import streamlit as st
 
 
 def render():
+    # Any equation still wider than a narrow window scrolls inside its box. The
+    # padding absorbs KaTeX's 1-2px overhang, so equations that fit show no scrollbar.
+    st.markdown(
+        "<style>"
+        '[data-testid="stMarkdownContainer"]:has(> .katex-display)'
+        " { min-width: 0; max-width: 100%; overflow-x: auto; overflow-y: hidden; }"
+        " .katex-display { padding: 0 4px; }"
+        "</style>",
+        unsafe_allow_html=True,
+    )
     st.title("Appendix: The model, agent by agent")
     st.markdown(
         """
@@ -137,9 +147,9 @@ def render():
     )
     with st.container(border=True):
         st.markdown("**In symbols**")
-        st.latex(r"\max_{K_t,\,N_t}\ \ K_t^{\theta_K}\left(\frac{K^G_t}{\bar K^G}\right)^{\theta_G}N_t^{\theta_N} - w_t N_t - R_t K_t, \qquad \theta_K+\theta_N=1")
+        st.latex(r"\max_{K_t,\,N_t}\ \ K_t^{\theta_K}\left(\frac{K^G_t}{\bar K^G}\right)^{\theta_G}N_t^{\theta_N} - w_t N_t - R_t K_t")
         st.markdown(
-            r"The first term is output $Y_t$. $\bar K^G$ is a fixed reference amount of public "
+            r"The first term is output $Y_t$, with $\theta_K+\theta_N=1$. $\bar K^G$ is a fixed reference amount of public "
             r"capital, about half of the benchmark's, so $K^G/\bar K^G>1$ in the benchmark. "
             r"$\theta_G=\partial\ln Y_t/\partial\ln K^G_t$, and $Y_t=0$ when $K^G_t=0$ and "
             r"$\theta_G>0$, so then $I^G_t>0$ is required."
@@ -162,7 +172,8 @@ def render():
     )
     with st.container(border=True):
         st.markdown("**In symbols**")
-        st.latex(r"w_t = \theta_N\,\frac{Y_t}{N_t}, \qquad R_t = \theta_K\,\frac{Y_t}{K_t} \qquad\Longrightarrow\qquad w_tN_t + R_tK_t = (\theta_N+\theta_K)\,Y_t = Y_t")
+        st.latex(r"w_t = \theta_N\,\frac{Y_t}{N_t}, \qquad R_t = \theta_K\,\frac{Y_t}{K_t}")
+        st.latex(r"\Longrightarrow\quad w_tN_t + R_tK_t = (\theta_N+\theta_K)\,Y_t = Y_t")
 
     st.subheader("A.3 Optimizing households (share 1 − λ)")
     st.markdown(
@@ -202,7 +213,9 @@ def render():
     with st.container(border=True):
         st.markdown("**In symbols**")
         st.latex(r"\max\ \sum_{t=0}^{\infty} \beta^t \Big[\ln\big(C^O_t + \phi\,G^C_t\big) + \theta_L \ln\big(1-N^O_t\big)\Big]")
-        st.latex(r"\text{subject to}\quad (1+\tau^C_t)\,C^O_t + I^O_t = (1-\tau^Y_t)\big(w_t N^O_t + R_t K^O_t\big) - T_t, \qquad K^O_{t+1} = (1-\delta)\,K^O_t + I^O_t")
+        st.markdown(r"subject to")
+        st.latex(r"(1+\tau^C_t)\,C^O_t + I^O_t = (1-\tau^Y_t)\big(w_t N^O_t + R_t K^O_t\big) - T_t")
+        st.latex(r"K^O_{t+1} = (1-\delta)\,K^O_t + I^O_t")
         st.markdown(r"When $\lambda=0$, the term $+\,G^T_t$ is added to the right-hand side of the budget.")
     st.markdown(
         """
@@ -241,8 +254,10 @@ def render():
     )
     with st.container(border=True):
         st.markdown("**In symbols**")
-        st.latex(r"\text{Labor-leisure:}\qquad \theta_L\,\frac{C^O_t+\phi\,G^C_t}{1-N^O_t} = \frac{(1-\tau^Y_t)\,w_t}{1+\tau^C_t}")
-        st.latex(r"\text{Euler equation:}\qquad \frac{1}{(1+\tau^C_t)(C^O_t+\phi\,G^C_t)} = \beta\,\frac{1+(1-\tau^Y_{t+1})\,R_{t+1}-\delta}{(1+\tau^C_{t+1})(C^O_{t+1}+\phi\,G^C_{t+1})}")
+        st.markdown(r"Labor-leisure:")
+        st.latex(r"\theta_L\,\frac{C^O_t+\phi\,G^C_t}{1-N^O_t} = \frac{(1-\tau^Y_t)\,w_t}{1+\tau^C_t}")
+        st.markdown(r"Euler equation:")
+        st.latex(r"\frac{1}{(1+\tau^C_t)(C^O_t+\phi\,G^C_t)} = \beta\,\frac{1+(1-\tau^Y_{t+1})\,R_{t+1}-\delta}{(1+\tau^C_{t+1})(C^O_{t+1}+\phi\,G^C_{t+1})}")
         st.markdown(
             r"$\tau^Y$ enters both conditions; $\tau^C$ enters the first and cancels from the "
             r"second when $\tau^C_t=\tau^C_{t+1}$; $T_t$ enters neither."
@@ -270,7 +285,9 @@ def render():
     )
     with st.container(border=True):
         st.markdown("**In symbols**")
-        st.latex(r"\max_{C^H_t,\,N^H_t}\ \ln\big(C^H_t + \phi\,G^C_t\big) + \theta_L \ln\big(1-N^H_t\big) \qquad \text{subject to}\quad (1+\tau^C_t)\,C^H_t = w_t N^H_t + \frac{G^T_t}{\lambda} - T_t")
+        st.latex(r"\max_{C^H_t,\,N^H_t}\ \ln\big(C^H_t + \phi\,G^C_t\big) + \theta_L \ln\big(1-N^H_t\big)")
+        st.markdown(r"subject to")
+        st.latex(r"(1+\tau^C_t)\,C^H_t = w_t N^H_t + \frac{G^T_t}{\lambda} - T_t")
     st.markdown(
         """
     **What the hand-to-mouth households do.** They follow the same work-versus-leisure rule
@@ -297,7 +314,8 @@ def render():
         st.markdown("**In symbols**")
         st.latex(r"\theta_L\,\frac{C^H_t+\phi\,G^C_t}{1-N^H_t} = \frac{w_t}{1+\tau^C_t}")
         st.markdown("Substituting the budget constraint:")
-        st.latex(r"N^H_t = \max\left\{0,\ \frac{w_t - \theta_L\left(\dfrac{G^T_t}{\lambda} - T_t + (1+\tau^C_t)\,\phi\,G^C_t\right)}{(1+\theta_L)\,w_t}\right\}, \qquad C^H_t = \frac{w_t N^H_t + G^T_t/\lambda - T_t}{1+\tau^C_t}")
+        st.latex(r"N^H_t = \max\left\{0,\ \frac{w_t - \theta_L\left(\dfrac{G^T_t}{\lambda} - T_t + (1+\tau^C_t)\,\phi\,G^C_t\right)}{(1+\theta_L)\,w_t}\right\}")
+        st.latex(r"C^H_t = \frac{w_t N^H_t + G^T_t/\lambda - T_t}{1+\tau^C_t}")
 
     st.subheader("A.5 Government")
     st.markdown(
@@ -336,7 +354,8 @@ def render():
     with st.container(border=True):
         st.markdown("**In symbols**")
         st.markdown(r"With $f^{LS}+f^Y+f^C=1$:")
-        st.latex(r"T_t = f^{LS}\,G_t, \qquad \tau^Y_t\,(1-\lambda)\big(w_t N^O_t + R_t K^O_t\big) = f^Y G_t, \qquad \tau^C_t\,C_t = f^C G_t")
+        st.latex(r"T_t = f^{LS}\,G_t, \qquad \tau^C_t\,C_t = f^C G_t")
+        st.latex(r"\tau^Y_t\,(1-\lambda)\big(w_t N^O_t + R_t K^O_t\big) = f^Y G_t")
 
     st.subheader("A.6 Market clearing and equilibrium")
     st.markdown(
@@ -352,7 +371,8 @@ def render():
     )
     with st.container(border=True):
         st.markdown("**In symbols**")
-        st.latex(r"C_t = \lambda\,C^H_t + (1-\lambda)\,C^O_t, \quad N_t = \lambda\,N^H_t + (1-\lambda)\,N^O_t, \quad K_t = (1-\lambda)\,K^O_t, \quad I_t = (1-\lambda)\,I^O_t")
+        st.latex(r"C_t = \lambda\,C^H_t + (1-\lambda)\,C^O_t, \qquad N_t = \lambda\,N^H_t + (1-\lambda)\,N^O_t")
+        st.latex(r"K_t = (1-\lambda)\,K^O_t, \qquad I_t = (1-\lambda)\,I^O_t")
     st.markdown(
         """
     **The goods market.** When we add together the two households' budgets and the
@@ -421,7 +441,8 @@ def render():
         st.markdown(r"With all variables constant and $\beta=1/(1+r)$, the Euler equation becomes")
         st.latex(r"(1-\tau^Y)\,R = r + \delta")
         st.markdown(r"With $R=\theta_K Y/K$ and the production function, this fixes the capital-labor ratio:")
-        st.latex(r"\frac{K}{N} = \left[\frac{\theta_K\,(K^G/\bar K^G)^{\theta_G}}{R}\right]^{1/\theta_N}, \qquad K^G = \frac{I^G}{\delta}")
+        st.latex(r"\frac{K}{N} = \left[\frac{\theta_K\,(K^G/\bar K^G)^{\theta_G}}{R}\right]^{1/\theta_N}")
+        st.latex(r"K^G = \frac{I^G}{\delta}")
         st.markdown(r"and $\theta_L$ is set so that $N = 0.20$ before the policy change.")
     st.markdown(
         """
