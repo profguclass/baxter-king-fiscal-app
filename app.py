@@ -379,19 +379,27 @@ BENCH_tax_mix = (BENCH_f_LS_pct / 100.0, BENCH_f_Y_pct / 100.0, BENCH_f_C_pct / 
 # A = K̄ᴳ^(-θG). K̄ᴳ is half the public capital of the benchmark economy without the
 # public-capital effect (θG=0), so the benchmark has Kᴳ/K̄ᴳ > 1 and a higher θG raises
 # output. theta_L is then calibrated in the benchmark itself.
-_theta_L_0 = calibrate_theta_L(theta_N, delta_pct / 100.0, BENCH_r_pct / 100.0, 1.0, 0.0,
-                                BENCH_s_G * BENCH_f_IG, BENCH_s_G * BENCH_f_GT,
-                                BENCH_tax_mix, N_target_pct / 100.0,
-                                s_GC=BENCH_s_G * BENCH_f_GC, phi=BENCH_phi, lam=BENCH_lam)
-KG_ref = 0.5 * steady_state_for_policy(theta_N, delta_pct / 100.0, BENCH_r_pct / 100.0, 1.0, 0.0,
-                                       BENCH_s_G, BENCH_f_IG, BENCH_f_GT, _theta_L_0, BENCH_tax_mix,
-                                       f_GC=BENCH_f_GC, phi=BENCH_phi, lam=BENCH_lam).KG
+@st.cache_data(show_spinner=False)
+def benchmark_calibration(theta_N, delta, r, s_G, f_IG, f_GC, f_GT, tax_mix, N_target,
+                           phi, lam, theta_G):
+    """KG_ref and theta_L for the fixed benchmark. Every input is a benchmark
+    constant, so the result is identical for all users and all reruns; the
+    calibration is the app's slowest step, so it is computed once per server."""
+    theta_L_0 = calibrate_theta_L(theta_N, delta, r, 1.0, 0.0, s_G * f_IG, s_G * f_GT,
+                                   tax_mix, N_target, s_GC=s_G * f_GC, phi=phi, lam=lam)
+    KG_ref = 0.5 * steady_state_for_policy(theta_N, delta, r, 1.0, 0.0, s_G, f_IG, f_GT,
+                                            theta_L_0, tax_mix, f_GC=f_GC, phi=phi, lam=lam).KG
+    A_bench = KG_ref ** -theta_G
+    theta_L_bench = calibrate_theta_L(theta_N, delta, r, A_bench, theta_G, s_G * f_IG, s_G * f_GT,
+                                       tax_mix, N_target, s_GC=s_G * f_GC, phi=phi, lam=lam)
+    return KG_ref, theta_L_bench
+
+
+KG_ref, theta_L_bench = benchmark_calibration(
+    theta_N, delta_pct / 100.0, BENCH_r_pct / 100.0, BENCH_s_G, BENCH_f_IG, BENCH_f_GC,
+    BENCH_f_GT, BENCH_tax_mix, N_target_pct / 100.0, BENCH_phi, BENCH_lam, BENCH_theta_G)
 A_bench = KG_ref ** -BENCH_theta_G
 A_v = KG_ref ** -theta_G_v
-theta_L_bench = calibrate_theta_L(theta_N, delta_pct / 100.0, BENCH_r_pct / 100.0, A_bench, BENCH_theta_G,
-                                   BENCH_s_G * BENCH_f_IG, BENCH_s_G * BENCH_f_GT,
-                                   BENCH_tax_mix, N_target_pct / 100.0,
-                                   s_GC=BENCH_s_G * BENCH_f_GC, phi=BENCH_phi, lam=BENCH_lam)
 
 error = None
 path_error = None
