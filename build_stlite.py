@@ -9,6 +9,7 @@ the number of users.
 Publish by serving docs/ (e.g. GitHub Pages: Settings > Pages > main /docs).
 app.py and fiscal_model.py stay the single source of truth; docs/ is generated.
 """
+import hashlib
 import shutil
 from pathlib import Path
 
@@ -44,6 +45,11 @@ HTML = """<!doctype html>
 OUT.mkdir(exist_ok=True)
 for name in FILES:
     shutil.copy(ROOT / name, OUT / name)
-entries = ",\n".join(f'        "{n}": {{ url: "./{n}" }}' for n in FILES)
+# A content hash in each URL makes browsers fetch a file again as soon as it
+# changes, instead of reusing GitHub Pages' cached copy (up to 10 minutes).
+entries = ",\n".join(
+    f'        "{n}": {{ url: "./{n}?v={hashlib.sha256((OUT / n).read_bytes()).hexdigest()[:10]}" }}'
+    for n in FILES
+)
 (OUT / "index.html").write_text(HTML.format(v=STLITE, files=entries), encoding="utf-8")
 print(f"Wrote {OUT / 'index.html'} (+ {', '.join(FILES)})")
