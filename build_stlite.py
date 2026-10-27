@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent
 OUT = ROOT / "docs"
-FILES = ["app.py", "fiscal_model.py", "kgu_emblem.png"]
+FILES = ["app.py", "appendix.py", "fiscal_model.py", "kgu_emblem.png"]
 STLITE = "0.75.0"
 
 HTML = """<!doctype html>
