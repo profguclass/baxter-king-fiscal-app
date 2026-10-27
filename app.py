@@ -37,20 +37,33 @@ st.set_page_config(page_title="Fiscal Policy in General Equilibrium",
 # --------------------------------------------------------------------------
 
 
+def focus_range(arrays):
+    """A y-axis range hugging the plotted values (with a small margin), so the
+    lines fill the chart instead of being squeezed against a zero line."""
+    vals = np.concatenate([np.asarray(a, dtype=float).ravel() for a in arrays])
+    vals = vals[np.isfinite(vals)]
+    if vals.size == 0:
+        return None
+    lo, hi = vals.min(), vals.max()
+    pad = 0.08 * (hi - lo) if hi > lo else max(0.05 * abs(lo), 0.05)
+    return [lo - pad, hi + pad]
+
+
 def line_fig(title, series_specs, yaxis_title, yrs):
     fig = go.Figure()
     for name, arr, color in series_specs:
         fig.add_trace(go.Scatter(x=yrs, y=arr[:len(yrs)], mode="lines+markers",
-                                  name=name, line=dict(color=color, width=2), marker=dict(size=4)))
+                                  name=name, line=dict(color=color, width=2.5), marker=dict(size=5)))
     fig.add_hline(y=0, line_dash="dot", line_color="gray")
     fig.update_layout(title=dict(text=title, y=0.98, yanchor="top"),
                        xaxis_title="Years after the change", yaxis_title=yaxis_title,
-                       height=420, legend=dict(orientation="h", y=1.18, yanchor="bottom"),
+                       height=540, legend=dict(orientation="h", y=1.18, yanchor="bottom"),
                        margin=dict(t=110, b=20))
+    fig.update_yaxes(range=focus_range([arr[:len(yrs)] for _, arr, _ in series_specs]))
     return fig
 
 
-def render_transition_tabs(path, slider_key, caption_commodity, caption_labor, caption_financial):
+def render_transition_tabs(path, slider_key, baseline, caption_commodity, caption_labor, caption_financial):
     """Renders the Commodity/Labor/Financial-market tabbed transition-path charts
     shared by both time-series panels, given any TransitionPath-like object."""
     years_to_show = st.slider("Years to display", 5, 100, 25, 5, key=slider_key)
@@ -70,7 +83,7 @@ def render_transition_tabs(path, slider_key, caption_commodity, caption_labor, c
             [("Output (Y)", path.Y, "#2563eb"), ("Consumption (C)", path.C, "#16a34a"),
              ("Investment (I)", path.I, "#f59e0b"), ("Government spending (G)", path.G, "#6b7280")]
             + split_c,
-            "% deviation from original steady state", yrs), use_container_width=True,
+            f"% deviation from {baseline}", yrs), use_container_width=True,
             key=f"{slider_key}_commodity")
         st.caption(caption_commodity)
 
@@ -78,7 +91,7 @@ def render_transition_tabs(path, slider_key, caption_commodity, caption_labor, c
         st.plotly_chart(line_fig(
             "Labor input and the real wage",
             [("Labor input (N)", path.N, "#2563eb"), ("Real wage (w)", path.W, "#dc2626")] + split_n,
-            "% deviation from original steady state", yrs), use_container_width=True,
+            f"% deviation from {baseline}", yrs), use_container_width=True,
             key=f"{slider_key}_labor")
         st.caption(caption_labor)
 
@@ -86,14 +99,15 @@ def render_transition_tabs(path, slider_key, caption_commodity, caption_labor, c
         st.plotly_chart(line_fig(
             "Private and public capital stocks",
             [("Private capital (K)", path.K, "#2563eb"), ("Public capital (Kᴳ)", path.KG, "#16a34a")],
-            "% deviation from original steady state", yrs), use_container_width=True,
+            f"% deviation from {baseline}", yrs), use_container_width=True,
             key=f"{slider_key}_capital")
         fig_r = go.Figure(go.Scatter(x=yrs, y=path.r_bp[:years_to_show], mode="lines+markers",
-                                      line=dict(color="#7c3aed", width=2)))
+                                      line=dict(color="#7c3aed", width=2.5), marker=dict(size=5)))
         fig_r.add_hline(y=0, line_dash="dot", line_color="gray")
-        fig_r.update_layout(title="Real interest rate, deviation from steady state",
+        fig_r.update_layout(title=f"Real interest rate, deviation from {baseline}",
                              xaxis_title="Years after the change", yaxis_title="Basis points",
-                             height=350, margin=dict(t=50, b=20))
+                             height=450, margin=dict(t=50, b=20))
+        fig_r.update_yaxes(range=focus_range([path.r_bp[:years_to_show]]))
         st.plotly_chart(fig_r, use_container_width=True, key=f"{slider_key}_rate")
         st.caption(caption_financial)
 
@@ -560,7 +574,7 @@ else:
                                                   permanent=permanent, duration_years=duration_years,
                                                   T_sim=200)
         render_transition_tabs(
-            cumulative_path, wkey("years_to_show_cumulative"),
+            cumulative_path, wkey("years_to_show_cumulative"), "the benchmark",
             caption_commodity="Compare to Baxter & King Figures 2-4, but here the "
                 "\"shock\" is the *entire* gap between the benchmark and the sidebar's "
                 "current settings, not a single isolated policy lever.",
@@ -678,10 +692,11 @@ else:
     st.subheader("Transition path: isolating the ΔG/Y shock")
     st.write("Perfect-foresight transition path (log-linearized around the relevant steady "
              "state, solved exactly via eigen-decomposition -- no simulation noise). "
-             "All series are % deviations from the *original* steady state, matching "
+             "All series are % deviations from the *current situation* (the steady state "
+             "set by the sidebar, before the extra rise in G/Y), matching "
              "Figures 2-4 of the paper.")
     render_transition_tabs(
-        path, wkey("years_to_show_marginal"),
+        path, wkey("years_to_show_marginal"), "the current situation",
         caption_commodity="Compare to Baxter & King Figure 2 (permanent) / Figure 3 "
             "(temporary war) / Figure 4 (GRH). Watch the investment 'accelerator boom' "
             "on impact when the shock is permanent and lump-sum financed.",
@@ -838,6 +853,36 @@ else:
         """A level series with the benchmark value prepended as year -1."""
         return np.concatenate([np.atleast_1d(arr_bench), arr_path])
 
+    cumulative_rules = {
+        "growth": ("Cumulative growth", "compounded growth over the years shown, "
+                   "i.e. the total % change from the benchmark to the last year"),
+        "change": ("Cumulative change", "the change from the benchmark (year −1) to the last year"),
+        "sum": ("Cumulative sum", "the sum over the years shown"),
+    }
+
+    def cumulative(arr, how):
+        a = np.asarray(arr, dtype=float)
+        if how == "growth":
+            return 100.0 * (np.prod(1.0 + a / 100.0) - 1.0)
+        if how == "change":
+            return a[-1] - a[0]
+        return a.sum()
+
+    def perf_chart(title, specs, yaxis_title, x, key, how):
+        """A Section 4 line chart plus, below it, a table of the same numbers
+        with a final row for the cumulative effect over the years shown."""
+        st.plotly_chart(line_fig(title, specs, yaxis_title, x), use_container_width=True, key=key)
+        label, rule = cumulative_rules[how]
+        table = pd.DataFrame({"Year": [str(v) for v in x] + [f"{label}, {x[0]} to {x[-1]}"],
+                              **{name: np.append(arr[:len(x)], cumulative(arr[:len(x)], how))
+                                 for name, arr, _ in specs}})
+        with st.expander(f"Data table: {title}"):
+            st.caption(f"Units: {yaxis_title}." + (" Year −1 is the benchmark." if x[0] < 0 else "")
+                       + f" The last row is {rule}.")
+            st.dataframe(table, hide_index=True, use_container_width=True,
+                         column_config={name: st.column_config.NumberColumn(format="%.3f")
+                                        for name, _, _ in specs})
+
     st.caption("All incomes, hours, and welfare below are **per person** (per capita): "
                "the population is normalized to 1, so the economy-wide series are averages "
                "over everyone, and each household type's series is for one member of that "
@@ -851,13 +896,11 @@ else:
         ["Growth", "Incomes", "Hours", "Inequality", "Welfare"])
 
     with tab_g:
-        st.plotly_chart(line_fig(
-            "Output and labor productivity: year-over-year growth",
+        perf_chart("Output and labor productivity: year-over-year growth",
             [("Output per person Y", yoy("Y"), "#2563eb"),
              ("Labor productivity Y/N", yoy("prod"), "#16a34a"),
              ("Hours per person N", yoy("N"), "#f59e0b")],
-            "% growth from the previous year", yrs), use_container_width=True,
-            key="perf_growth")
+            "% growth from the previous year", yrs, "perf_growth", "growth")
         st.caption(
             "Output growth splits into two parts: growth in labor productivity (output per "
             "hour, Y/N) and growth in hours worked. Productivity grows when capital per "
@@ -874,17 +917,13 @@ else:
         if two_types:
             labor_specs[1:1] = [("Labor income per optimizer wNᴼ", yoy("labor_O"), "#0d9488"),
                                 ("Labor income per hand-to-mouth household wNᴴ", yoy("labor_H"), "#db2777")]
-        st.plotly_chart(line_fig(
-            "Labor and capital income per person (before tax): year-over-year growth",
-            labor_specs, "% growth from the previous year", yrs),
-            use_container_width=True, key="perf_factor_income")
+        perf_chart("Labor and capital income per person (before tax): year-over-year growth",
+            labor_specs, "% growth from the previous year", yrs, "perf_factor_income", "growth")
         disp_specs = [("Per optimizer", yoy("income_O"), "#0d9488")]
         if two_types:
             disp_specs.append(("Per hand-to-mouth household", yoy("income_H"), "#db2777"))
-        st.plotly_chart(line_fig(
-            "Disposable income per person: year-over-year growth",
-            disp_specs, "% growth from the previous year", yrs),
-            use_container_width=True, key="perf_disp_income")
+        perf_chart("Disposable income per person: year-over-year growth",
+            disp_specs, "% growth from the previous year", yrs, "perf_disp_income", "growth")
         st.caption(
             "Labor income is the wage times hours; capital income is the rental rate "
             "times the capital stock. Only optimizers own capital, so all capital income "
@@ -900,18 +939,15 @@ else:
 
     with tab_h:
         if two_types:
-            st.plotly_chart(line_fig(
-                "Hours per person, by household type (% of time)",
+            perf_chart("Hours per person, by household type (% of time)",
                 [("Per optimizer Nᴼ", 100 * level(perf["NO"], perf_bench["NO"]), "#0d9488"),
                  ("Per hand-to-mouth household Nᴴ", 100 * level(perf["NH"], perf_bench["NH"]), "#db2777"),
                  ("Per person, average N", 100 * level(perf["N"], perf_bench["N"]), "#2563eb")],
-                "% of time endowment", yrs_lvl), use_container_width=True, key="perf_hours")
-            st.plotly_chart(line_fig(
-                "Hours gap: optimizers minus hand-to-mouth (Nᴼ − Nᴴ)",
+                "% of time endowment", yrs_lvl, "perf_hours", "change")
+            perf_chart("Hours gap: optimizers minus hand-to-mouth (Nᴼ − Nᴴ)",
                 [("Hours gap", 100 * level(perf["NO"] - perf["NH"],
                                             perf_bench["NO"] - perf_bench["NH"]), "#6b7280")],
-                "Percentage points of time", yrs_lvl), use_container_width=True,
-                key="perf_hours_gap")
+                "Percentage points of time", yrs_lvl, "perf_hours_gap", "change")
             st.caption(
                 "Year −1 is the benchmark. Both types face the same wage, so differences "
                 "in hours come from differences in wealth and taxes. Cash welfare and a "
@@ -926,19 +962,17 @@ else:
 
     with tab_q:
         if two_types:
-            st.plotly_chart(line_fig(
-                "Optimizer / hand-to-mouth ratios (per person)",
+            perf_chart("Optimizer / hand-to-mouth ratios (per person)",
                 [("Disposable income ratio", level(perf["income_O"] / perf["income_H"],
                                                    perf_bench["income_O"] / perf_bench["income_H"]), "#2563eb"),
                  ("Consumption ratio Cᴼ/Cᴴ", level(perf["CO"] / perf["CH"],
                                                     perf_bench["CO"] / perf_bench["CH"]), "#16a34a")],
-                "Ratio (1 = equal)", yrs_lvl), use_container_width=True, key="perf_ratios")
-            st.plotly_chart(line_fig(
-                "Gini coefficient of disposable income (two groups)",
+                "Ratio (1 = equal)", yrs_lvl, "perf_ratios", "change")
+            perf_chart("Gini coefficient of disposable income (two groups)",
                 [("Gini", level(two_group_gini(ss_current.lam, perf["income_H"], perf["income_O"]),
                                 two_group_gini(ss_benchmark.lam, perf_bench["income_H"], perf_bench["income_O"])),
                   "#dc2626")],
-                "Gini (0 = equal)", yrs_lvl), use_container_width=True, key="perf_gini")
+                "Gini (0 = equal)", yrs_lvl, "perf_gini", "change")
             st.caption(
                 "Two ways to measure inequality between the two household types. The "
                 "**ratio** compares an average optimizer with an average hand-to-mouth "
@@ -993,12 +1027,11 @@ else:
             # Average utility per person, each scenario with its own population shares.
             u_avg = ss_current.lam * u_H + (1 - ss_current.lam) * u_O
             u_avg_b = ss_benchmark.lam * u_H_b + (1 - ss_benchmark.lam) * u_O_b
-            st.plotly_chart(line_fig(
-                "Period utility per person, relative to the benchmark",
+            perf_chart("Period utility per person, relative to the benchmark",
                 [("Per optimizer", u_O - u_O_b, "#0d9488"),
                  ("Per hand-to-mouth household", u_H - u_H_b, "#db2777"),
                  ("Per person, average", u_avg - u_avg_b, "#2563eb")],
-                "Change in utility (utils)", yrs), use_container_width=True, key="perf_utility")
+                "Change in utility (utils)", yrs, "perf_utility", "sum")
             st.caption(
                 "Each year's utility, ln(C + φGᶜ) + θ_L·ln(1 − N), minus its benchmark "
                 "value. It rises with own consumption, in-kind welfare, and leisure. Above "
