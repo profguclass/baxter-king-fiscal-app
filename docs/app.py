@@ -5,8 +5,7 @@ purchases, extended with productive public capital, for exploring how fiscal
 policy parameters and the *size*, *composition*, and *financing* of
 government spending shape the whole economy.
 
-Run locally with:   streamlit run app.py
-Deploy for free on Streamlit Community Cloud by pointing it at this file.
+Runs in the browser via stlite: build the site with  python build_stlite.py
 """
 
 from pathlib import Path

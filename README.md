@@ -18,29 +18,29 @@ see the effect on the economy's steady state and its transition path.
 |---|---|
 | `fiscal_model.py` | The economics: closed-form steady-state solver, exact log-linear transition-path solver (eigen-decomposition / saddle-path method), and the Section VI productive-public-capital extension. No UI code. |
 | `app.py` | The Streamlit front end: sliders for every structural and policy parameter, steady-state comparison table/chart, transition-path charts (commodity / labor / financial markets), a duration-sensitivity panel (Table 3 style), and a productive-public-investment panel (Table 4 style). |
+| `appendix.py` | The Appendix (the model told agent by agent, with the equations in boxes), opened in a separate window via `?view=appendix`. |
 | `test_model.py` | Sanity checks against the numbers reported in the paper's Tables 1–4 and Figures 2–5. |
-| `requirements.txt` | Python dependencies. |
+| `build_stlite.py` | Packages the app into `docs/` for GitHub Pages. |
+| `docs/` | The published site (generated; do not edit by hand). |
 
-## Running locally
+## The website
+
+The app is published with GitHub Pages at
+<https://profguclass.github.io/baxter-king-fiscal-app/> (Settings > Pages >
+main branch, `/docs` folder). There is no server: GitHub only serves the
+files, and each student's browser downloads a Python runtime
+([stlite](https://github.com/whitphx/stlite)) and runs the app itself.
+
+After changing `app.py`, `appendix.py` or `fiscal_model.py`, rebuild and
+preview:
 
 ```bash
-pip install -r requirements.txt
-streamlit run app.py
+python build_stlite.py
+python -m http.server 8000 --directory docs
 ```
 
-Then open the URL Streamlit prints (usually `http://localhost:8501`).
-
-## Publishing to Streamlit Community Cloud (free)
-
-1. Push this folder to a GitHub repository (public or private).
-2. Go to [share.streamlit.io](https://share.streamlit.io), sign in with
-   GitHub, and click **"New app."**
-3. Point it at your repo, branch, and `app.py` as the entry point.
-4. Deploy — Streamlit Cloud installs `requirements.txt` automatically and
-   gives you a shareable `https://<something>.streamlit.app` URL that your
-   students can use directly, no installation required.
-
-Any time you push a new commit, the deployed app redeploys automatically.
+Then open `http://localhost:8000`, and commit and push `docs/` along with
+the changed source files.
 
 ## The economics, briefly
 
