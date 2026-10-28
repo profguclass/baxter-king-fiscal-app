@@ -187,8 +187,6 @@ def regime_transition_path(ss_from, ss_to, ss_reverted=None, permanent=True,
 # Sidebar -- model controls
 # --------------------------------------------------------------------------
 
-st.sidebar.title("\U0001F3DB️ Model controls")
-
 if "reset_version" not in st.session_state:
     st.session_state["reset_version"] = 0
 
@@ -216,7 +214,7 @@ PAPER_BENCH = dict(f_LS=50.0, f_Y=20.0, f_C=30.0, theta_G=0.10, s_G=20.0,
 
 # The benchmark in use: the sidebar's defaults (and Reset target), and the reference
 # point Sections S1 and S2 compare the current settings against. A user can replace
-# it for the rest of their session with "Set benchmark economy".
+# it for the rest of their session with "⚙ Benchmark".
 bench = st.session_state.get("bench", PAPER_BENCH)
 BENCH_f_LS_pct, BENCH_f_Y_pct, BENCH_f_C_pct = bench["f_LS"], bench["f_Y"], bench["f_C"]
 BENCH_theta_G = bench["theta_G"]
@@ -236,7 +234,7 @@ def reset_to_benchmark():
 @st.dialog("Set the benchmark economy", width="large")
 def benchmark_dialog():
     st.write("The benchmark is the economy Sections S1 and S2 compare against, and where "
-             "**Reset to benchmark** takes the sidebar. Your benchmark lasts until you "
+             "**↺ Reset** takes the sidebar. Your benchmark lasts until you "
              "reload the page and does not affect anyone else.")
     k = lambda name: f"bench_{name}_{st.session_state['reset_version']}"
     st.markdown("**A. Tax revenue shares (%)**")
@@ -274,22 +272,43 @@ def benchmark_dialog():
         reset_to_benchmark()
 
 
-if st.sidebar.button("↺ Reset to benchmark", use_container_width=True):
+# Compact sidebar: tighter spacing, smaller headings, no slider min/max labels,
+# so every control fits on one screen.
+st.sidebar.markdown("""<style>
+section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {padding-top: 0; padding-bottom: 1rem;}
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {gap: 0.4rem;}
+section[data-testid="stSidebar"] h2 {font-size: 1.25rem; line-height: 1.3; padding: 0 0 0.2rem; margin: 0; text-align: center;}
+section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {font-size: 0.95rem;}
+section[data-testid="stSidebar"] input {font-size: 0.95rem;}
+section[data-testid="stSidebar"] [data-testid="stSliderThumbValue"] {font-size: 0.95rem; font-family: inherit;}
+section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p strong {font-size: 1rem;}
+section[data-testid="stSidebar"] h3 {font-size: 1rem; line-height: 1.3; padding: 0.4rem 0 0.1rem; margin: 0;}
+section[data-testid="stSidebar"] [data-testid="stHeading"] [data-testid="stMarkdownContainer"] {margin-bottom: 0;}
+section[data-testid="stSidebar"] [data-testid="stSliderTickBar"] {display: none;}
+section[data-testid="stSidebar"] .stButton button {min-height: 2.1rem; padding: 0.1rem 0.3rem; white-space: nowrap;}
+section[data-testid="stSidebar"] .stButton button p {font-size: 0.85rem;}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] {gap: 0.4rem;}
+</style>""", unsafe_allow_html=True)
+
+st.sidebar.header("Control Panel")
+btn_c1, btn_c2, btn_c3 = st.sidebar.columns(3)
+if btn_c1.button("↺ Reset", use_container_width=True, help="Reset the sidebar to the benchmark"):
     reset_to_benchmark()
-run_clicked = st.sidebar.button("▶ Run simulation", type="primary", use_container_width=True)
-run_note = st.sidebar.empty()  # filled below once the widget values are known
-if st.sidebar.button("⚙ Set benchmark economy", use_container_width=True):
+run_clicked = btn_c2.button("▶ Run", type="primary", use_container_width=True,
+                            help="Run the simulation with these settings")
+if btn_c3.button("⚙ Benchmark", use_container_width=True, help="Set the benchmark economy"):
     benchmark_dialog()
+run_note = st.sidebar.empty()  # filled below once the widget values are known
 if "bench" in st.session_state:
     st.sidebar.caption("Using your own benchmark economy.")
 
 
 # 1. Financing rule -----------------------------------------------------
-st.sidebar.subheader("A. How is the tax collected?")
+st.sidebar.subheader("A. Tax shares of revenue (%)")
 tax_c1, tax_c2, tax_c3 = st.sidebar.columns(3)
-in_LS = tax_c1.number_input("Lump-sum (%)", 0.0, 100.0, BENCH_f_LS_pct, 5.0, key=wkey("in_LS"))
-in_Y = tax_c2.number_input("Income (%)", 0.0, 100.0, BENCH_f_Y_pct, 5.0, key=wkey("in_Y"))
-in_C = tax_c3.number_input("Consumption (%)", 0.0, 100.0, BENCH_f_C_pct, 5.0, key=wkey("in_C"))
+in_LS = tax_c1.number_input("Lump-sum", 0.0, 100.0, BENCH_f_LS_pct, 5.0, key=wkey("in_LS"))
+in_Y = tax_c2.number_input("Income", 0.0, 100.0, BENCH_f_Y_pct, 5.0, key=wkey("in_Y"))
+in_C = tax_c3.number_input("Consumption", 0.0, 100.0, BENCH_f_C_pct, 5.0, key=wkey("in_C"))
 tax_total = in_LS + in_Y + in_C
 if tax_total <= 0:
     st.sidebar.error("At least one share must be positive; using 100% lump-sum tax.")
@@ -298,14 +317,10 @@ elif abs(tax_total - 100.0) > 1e-9:
     st.sidebar.warning(f"The shares add up to {tax_total:.0f}%, not 100%, so they are "
                         f"rescaled proportionally.")
 tax_mix_v = (in_LS / tax_total, in_Y / tax_total, in_C / tax_total)
-st.sidebar.caption(f"Lump-sum **{100 * tax_mix_v[0]:.0f}%** · income tax "
-                    f"**{100 * tax_mix_v[1]:.0f}%** · consumption tax "
-                    f"**{100 * tax_mix_v[2]:.0f}%** of revenue.")
 
 # 2. theta_G -----------------------------------------------------------------
-st.sidebar.subheader("B. Productive public capital")
 theta_G = st.sidebar.slider(
-    "Public-capital productivity, θ_G", 0.00, 0.20, BENCH_theta_G, 0.01,
+    "**B. Public-capital productivity, θ_G**", 0.00, 0.20, BENCH_theta_G, 0.01,
     help="Y = K^θK·(Kᴳ/K̄ᴳ)^θG·N^θN, with public capital measured relative to a fixed "
          "reference K̄ᴳ of about half the benchmark's public capital, so a higher θG makes "
          "public capital more productive and raises output. θG=0 means public investment "
@@ -315,9 +330,8 @@ theta_G = st.sidebar.slider(
 )
 
 # 3. Value of in-kind welfare to households -----------------------------------
-st.sidebar.subheader("C. Value of in-kind welfare")
 phi = st.sidebar.slider(
-    "Value of Gᶜ to households, φ", 0.0, 1.0, BENCH_phi, 0.05,
+    "**C. Value of in-kind welfare Gᶜ, φ**", 0.0, 1.0, BENCH_phi, 0.05,
     help="Utility is ln(C + φ·Gᶜ) + θ_L·ln(1−N). φ=0: Gᶜ is a pure drain (Baxter & King's "
          "\"basic purchases\"). φ=1: Gᶜ is a perfect substitute for private consumption, "
          "so under lump-sum financing it crowds out C one-for-one and leaves output unchanged.",
@@ -326,33 +340,35 @@ phi = st.sidebar.slider(
 
 # 4. Total government spending -----------------------------------------
 st.sidebar.subheader("D. Total government spending")
+_, d_box = st.sidebar.columns([1, 14])  # indent items D.1–D.3 under D
 s_G_old_pct = BENCH_s_G_pct  # the benchmark's G/Y, Section S1's reference level
-s_G_new_pct = st.sidebar.slider(
-    "D.1 Total government spending, G/Y (%)", 5.0, 40.0, BENCH_s_G_pct, 1.0,
+s_G_new_pct = d_box.slider(
+    "D.1 Spending now, G/Y (%)", 5.0, 40.0, BENCH_s_G_pct, 1.0,
     help=f"The current level of government spending. The benchmark is G/Y = {BENCH_s_G_pct:.0f}%: "
          "Section S1 compares the current settings against it, and Section S3 raises "
          "G/Y from this current level (item D.2).",
     key=wkey("s_G_new_pct"))
-dG_pct = st.sidebar.number_input(
-    "D.2 Increase in G/Y for Sections S3 and S4 (percentage points)", 0.5, 10.0, 1.0, 0.5,
+dG_pct = d_box.number_input(
+    "D.2 Rise in G/Y for S3 and S4 (pp)", 0.5, 10.0, 1.0, 0.5,
     help="Sections S3 and S4 raise G/Y by this much from its current level (item D.1), "
          "holding every other setting as it is now.",
     key=wkey("dG_pct"))
 
 # 4.3 Duration of the change, alongside G/Y within the same section, since it
 # only governs how long a ΔG/Y change lasts. --------------------------------
-duration_label = st.sidebar.radio("D.3 Duration of the change", ["Permanent", "Temporary"], key=wkey("duration_label"))
+duration_label = d_box.radio("D.3 Duration of the change", ["Permanent", "Temporary"],
+                            horizontal=True, key=wkey("duration_label"))
 permanent = duration_label == "Permanent"
 duration_years = 4
 if not permanent:
-    duration_years = st.sidebar.slider("Duration (years)", 1, 20, 4, 1, key=wkey("duration_years"))
+    duration_years = d_box.slider("Duration (years)", 1, 20, 4, 1, key=wkey("duration_years"))
 
 # 5. Composition of G ------------------------------------------------------
-st.sidebar.subheader("E. Composition of G")
+st.sidebar.subheader("E. Composition of G (%)")
 comp_c1, comp_c2, comp_c3 = st.sidebar.columns(3)
-in_IG = comp_c1.number_input("Investment Iᴳ (%)", 0.0, 100.0, BENCH_f_IG_pct, 5.0, key=wkey("in_IG"))
-in_GC = comp_c2.number_input("In-kind Gᶜ (%)", 0.0, 100.0, BENCH_f_GC_pct, 5.0, key=wkey("in_GC"))
-in_GT = comp_c3.number_input("Cash Gᵀ (%)", 0.0, 100.0, BENCH_f_GT_pct, 5.0, key=wkey("in_GT"))
+in_IG = comp_c1.number_input("Invest. Iᴳ", 0.0, 100.0, BENCH_f_IG_pct, 5.0, key=wkey("in_IG"))
+in_GC = comp_c2.number_input("In-kind Gᶜ", 0.0, 100.0, BENCH_f_GC_pct, 5.0, key=wkey("in_GC"))
+in_GT = comp_c3.number_input("Cash Gᵀ", 0.0, 100.0, BENCH_f_GT_pct, 5.0, key=wkey("in_GT"))
 comp_total = in_IG + in_GC + in_GT
 if comp_total <= 0:
     st.sidebar.error("At least one share must be positive; using 100% cash welfare.")
@@ -364,27 +380,9 @@ f_IG_pct = 100.0 * in_IG / comp_total
 f_GC_pct = 100.0 * in_GC / comp_total
 f_GT_pct = 100.0 * in_GT / comp_total
 
-fig_comp = go.Figure()
-for name, val, color in [("Investment Iᴳ", f_IG_pct, "#16a34a"),
-                          ("In-kind Gᶜ", f_GC_pct, "#f59e0b"),
-                          ("Cash Gᵀ", f_GT_pct, "#7c3aed")]:
-    fig_comp.add_trace(go.Bar(y=["G/Y"], x=[val], name=name, orientation="h",
-                               marker_color=color,
-                               text=f"{name.split()[-1]} {val:.0f}%" if val >= 10 else "",
-                               textposition="inside", insidetextanchor="middle",
-                               hoverinfo="skip"))
-fig_comp.update_layout(barmode="stack", height=60, showlegend=False,
-                        margin=dict(l=0, r=0, t=0, b=0),
-                        xaxis=dict(range=[0, 100], showticklabels=False, fixedrange=True),
-                        yaxis=dict(showticklabels=False, fixedrange=True))
-st.sidebar.plotly_chart(fig_comp, use_container_width=True, config={"displayModeBar": False})
-st.sidebar.caption(f"Public investment Iᴳ **{f_IG_pct:.0f}%** · in-kind welfare Gᶜ "
-                    f"**{f_GC_pct:.0f}%** · cash welfare Gᵀ **{f_GT_pct:.0f}%** of G.")
-
 # 6. Household types ----------------------------------------------------------
-st.sidebar.subheader("F. Household types")
 lam = st.sidebar.slider(
-    "Hand-to-mouth share of households, λ", 0.0, 0.9, BENCH_lam, 0.05,
+    "**F. Hand-to-mouth share, λ**", 0.0, 0.9, BENCH_lam, 0.05,
     help="Hand-to-mouth (non-Ricardian) working families own no capital, spend all their "
          "income each period, pay no income tax, and receive all cash welfare Gᵀ. They "
          "pay the lump-sum tax and the consumption tax like everyone else. Optimizers own "
@@ -403,7 +401,7 @@ if run_clicked or "applied" not in st.session_state:
     st.session_state["applied"] = current
 applied = st.session_state["applied"]
 if applied != current:
-    run_note.warning("Settings changed. Click **Run simulation** to update the results.")
+    run_note.warning("Settings changed. Click **▶ Run** to update the results.")
 (tax_mix_v, theta_G, s_G_new_pct, dG_pct, permanent, duration_years,
  f_IG_pct, f_GC_pct, f_GT_pct, phi, lam) = (applied[k] for k in current)
 
