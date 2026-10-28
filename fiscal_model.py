@@ -85,7 +85,7 @@ def _supply_side_impl(theta_N: float, delta: float, r: float, A: float, tau_y: f
         raise ValueError("Invalid parameters: the income-tax rate must be below 100%.")
     if theta_G > 0 and s_IG <= 0:
         raise ValueError("With productive public capital (θ_G > 0), firms need public capital "
-                         "to produce: set public investment above 0% (item 5), or set θ_G = 0.")
+                         "to produce: set public investment above 0% (item E), or set θ_G = 0.")
 
     kappa = ((tax_factor * theta_K * A) / (r + delta)) ** (1.0 / (1.0 - theta_K))
     alpha = A * kappa ** theta_K  # will be rescaled by KG^theta_G below

@@ -321,7 +321,7 @@ def render():
     st.markdown(
         """
     **What the government does.** The government sets its total spending as a share of
-    output (sidebar item 4) and divides it into its three parts (item 5). Its total
+    output (sidebar item D) and divides it into its three parts (item E). Its total
     spending each year is exactly public investment plus in-kind welfare plus cash welfare.
 
     Public investment builds public capital the same way private investment builds
@@ -335,7 +335,7 @@ def render():
     st.markdown(
         """
     **How the government pays.** The government cannot borrow, so every year the three
-    taxes together must pay for all of its spending. Sidebar item 1 fixes the share of
+    taxes together must pay for all of its spending. Sidebar item A fixes the share of
     spending that each tax pays for, and the three shares add up to one. The tax rates then
     adjust each year so that each tax raises exactly its share.
 
@@ -451,7 +451,7 @@ def render():
     year by year, through investment. Consumption, hours, the wage, and the rental rate, on
     the other hand, can jump at once. The app finds the one path along which every rule in
     this story holds in every single year and the island converges to its new steady
-    state. That path is what the charts in panels 1 and 2 show.
+    state. That path is what the transition charts in Sections S1 and S3 show.
     """
     )
     with st.container(border=True):

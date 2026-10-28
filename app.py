@@ -127,7 +127,7 @@ def regime_transition_path(ss_from, ss_to, ss_reverted=None, permanent=True,
     G/Y, unlike the ΔG/Y-specific experiment). Financing, composition, θ_G, and r are
     always treated as permanent, immediate switches, since this model has no
     mechanism for a structural parameter to "revert." Only total government spending
-    G respects the sidebar's Duration control (item 4.3).
+    G respects the sidebar's Duration control (item D.3).
 
     If permanent, this linearizes around ss_to (the destination regime, already at
     its final G/Y) with g_path=0 throughout -- G jumps to ss_to's share immediately
@@ -199,34 +199,93 @@ def wkey(name: str) -> str:
     client-side, even though the underlying computed value does reset correctly."""
     return f"{name}_{st.session_state['reset_version']}"
 
-if st.sidebar.button("↺ Reset to benchmark", use_container_width=True):
-    st.session_state["reset_version"] += 1
-    st.rerun()
-
 # Fixed at the paper's calibration (Table 1): labor share of income,
-# depreciation rate, and target steady-state hours worked are no longer sidebar
-# controls.
+# depreciation rate, target steady-state hours worked, and the real interest rate
+# are no longer sidebar controls.
 theta_N = 0.58
 delta_pct = 10.0
 N_target_pct = 20.0
-
-# Benchmark policy scenario: the sidebar's defaults (and Reset target), and the
-# fixed reference point Panel 1 compares the current settings against.
-BENCH_f_LS_pct, BENCH_f_Y_pct, BENCH_f_C_pct = 50.0, 20.0, 30.0  # shares of revenue
-BENCH_theta_G = 0.10
 BENCH_r_pct = 6.5
-BENCH_s_G_pct = 20.0
-BENCH_f_IG_pct, BENCH_f_GC_pct, BENCH_f_GT_pct = 20.0, 50.0, 30.0
-BENCH_phi = 0.10
-BENCH_lam = 0.30
+r_pct = BENCH_r_pct
+
+# The paper's benchmark policy scenario (percentages, except θ_G, φ and λ).
+# Preferences are always calibrated to it, so the same settings always describe
+# the same economy, whatever benchmark a user compares against.
+PAPER_BENCH = dict(f_LS=50.0, f_Y=20.0, f_C=30.0, theta_G=0.10, s_G=20.0,
+                   f_IG=20.0, f_GC=50.0, f_GT=30.0, phi=0.10, lam=0.30)
+
+# The benchmark in use: the sidebar's defaults (and Reset target), and the reference
+# point Sections S1 and S2 compare the current settings against. A user can replace
+# it for the rest of their session with "Set benchmark economy".
+bench = st.session_state.get("bench", PAPER_BENCH)
+BENCH_f_LS_pct, BENCH_f_Y_pct, BENCH_f_C_pct = bench["f_LS"], bench["f_Y"], bench["f_C"]
+BENCH_theta_G = bench["theta_G"]
+BENCH_s_G_pct = bench["s_G"]
+BENCH_f_IG_pct, BENCH_f_GC_pct, BENCH_f_GT_pct = bench["f_IG"], bench["f_GC"], bench["f_GT"]
+BENCH_phi = bench["phi"]
+BENCH_lam = bench["lam"]
+
+
+def reset_to_benchmark():
+    """Remount every sidebar widget at the benchmark and show its results at once."""
+    st.session_state["reset_version"] += 1
+    st.session_state.pop("applied", None)
+    st.rerun()
+
+
+@st.dialog("Set the benchmark economy", width="large")
+def benchmark_dialog():
+    st.write("The benchmark is the economy Sections S1 and S2 compare against, and where "
+             "**Reset to benchmark** takes the sidebar. Your benchmark lasts until you "
+             "reload the page and does not affect anyone else.")
+    k = lambda name: f"bench_{name}_{st.session_state['reset_version']}"
+    st.markdown("**A. Tax revenue shares (%)**")
+    c1, c2, c3 = st.columns(3)
+    f_LS = c1.number_input("Lump-sum (%)", 0.0, 100.0, bench["f_LS"], 5.0, key=k("f_LS"))
+    f_Y = c2.number_input("Income (%)", 0.0, 100.0, bench["f_Y"], 5.0, key=k("f_Y"))
+    f_C = c3.number_input("Consumption (%)", 0.0, 100.0, bench["f_C"], 5.0, key=k("f_C"))
+    theta_G_b = st.slider("B. Public-capital productivity, θ_G", 0.00, 0.20,
+                          bench["theta_G"], 0.01, key=k("theta_G"))
+    phi_b = st.slider("C. Value of Gᶜ to households, φ", 0.0, 1.0, bench["phi"], 0.05,
+                      key=k("phi"))
+    s_G_b = st.slider("D. Total government spending, G/Y (%)", 5.0, 40.0, bench["s_G"],
+                      1.0, key=k("s_G"))
+    st.markdown("**E. Composition of G (%)**")
+    c1, c2, c3 = st.columns(3)
+    f_IG = c1.number_input("Investment Iᴳ (%)", 0.0, 100.0, bench["f_IG"], 5.0, key=k("f_IG"))
+    f_GC = c2.number_input("In-kind Gᶜ (%)", 0.0, 100.0, bench["f_GC"], 5.0, key=k("f_GC"))
+    f_GT = c3.number_input("Cash Gᵀ (%)", 0.0, 100.0, bench["f_GT"], 5.0, key=k("f_GT"))
+    lam_b = st.slider("F. Hand-to-mouth share of households, λ", 0.0, 0.9, bench["lam"],
+                      0.05, key=k("lam"))
+    tax_sum, comp_sum = f_LS + f_Y + f_C, f_IG + f_GC + f_GT
+    b1, b2 = st.columns(2)
+    if b1.button("Apply", type="primary", use_container_width=True):
+        if tax_sum <= 0 or comp_sum <= 0:
+            st.error("Each group of shares (A and E) needs at least one positive share.")
+            return
+        # Shares that don't add up to 100% are rescaled, as in the sidebar.
+        st.session_state["bench"] = dict(
+            f_LS=100 * f_LS / tax_sum, f_Y=100 * f_Y / tax_sum, f_C=100 * f_C / tax_sum,
+            theta_G=theta_G_b, s_G=s_G_b, f_IG=100 * f_IG / comp_sum,
+            f_GC=100 * f_GC / comp_sum, f_GT=100 * f_GT / comp_sum, phi=phi_b, lam=lam_b)
+        reset_to_benchmark()
+    if b2.button("Restore the paper's benchmark", use_container_width=True):
+        st.session_state.pop("bench", None)
+        reset_to_benchmark()
+
+
+if st.sidebar.button("↺ Reset to benchmark", use_container_width=True):
+    reset_to_benchmark()
+run_clicked = st.sidebar.button("▶ Run simulation", type="primary", use_container_width=True)
+run_note = st.sidebar.empty()  # filled below once the widget values are known
+if st.sidebar.button("⚙ Set benchmark economy", use_container_width=True):
+    benchmark_dialog()
+if "bench" in st.session_state:
+    st.sidebar.caption("Using your own benchmark economy.")
+
 
 # 1. Financing rule -----------------------------------------------------
-st.sidebar.subheader("1. How is the tax collected?")
-st.sidebar.caption("Enter each tax's share of tax revenue (%). Together the three taxes "
-                    "always pay for all government spending G. **Lump-sum**: the same "
-                    "amount per person, whatever one does. **Income tax**: a rate on "
-                    "optimizers' labor and capital income. **Consumption tax**: a rate on "
-                    "everyone's private consumption.")
+st.sidebar.subheader("A. How is the tax collected?")
 tax_c1, tax_c2, tax_c3 = st.sidebar.columns(3)
 in_LS = tax_c1.number_input("Lump-sum (%)", 0.0, 100.0, BENCH_f_LS_pct, 5.0, key=wkey("in_LS"))
 in_Y = tax_c2.number_input("Income (%)", 0.0, 100.0, BENCH_f_Y_pct, 5.0, key=wkey("in_Y"))
@@ -244,55 +303,52 @@ st.sidebar.caption(f"Lump-sum **{100 * tax_mix_v[0]:.0f}%** · income tax "
                     f"**{100 * tax_mix_v[2]:.0f}%** of revenue.")
 
 # 2. theta_G -----------------------------------------------------------------
-st.sidebar.subheader("2. Productive public capital")
+st.sidebar.subheader("B. Productive public capital")
 theta_G = st.sidebar.slider(
     "Public-capital productivity, θ_G", 0.00, 0.20, BENCH_theta_G, 0.01,
     help="Y = K^θK·(Kᴳ/K̄ᴳ)^θG·N^θN, with public capital measured relative to a fixed "
          "reference K̄ᴳ of about half the benchmark's public capital, so a higher θG makes "
          "public capital more productive and raises output. θG=0 means public investment "
          "is a pure resource cost with no productivity effect. With θG>0, public "
-         "investment (item 5) must be above 0%.",
+         "investment (item E) must be above 0%.",
     key=wkey("theta_G"),
 )
 
-# 3. Steady-state real interest rate -----------------------------------------
-st.sidebar.subheader("3. Real interest rate")
-r_pct = st.sidebar.slider("Steady-state real interest rate, r (%/yr)", 1.0, 12.0, BENCH_r_pct, 0.25, key=wkey("r_pct"))
+# 3. Value of in-kind welfare to households -----------------------------------
+st.sidebar.subheader("C. Value of in-kind welfare")
+phi = st.sidebar.slider(
+    "Value of Gᶜ to households, φ", 0.0, 1.0, BENCH_phi, 0.05,
+    help="Utility is ln(C + φ·Gᶜ) + θ_L·ln(1−N). φ=0: Gᶜ is a pure drain (Baxter & King's "
+         "\"basic purchases\"). φ=1: Gᶜ is a perfect substitute for private consumption, "
+         "so under lump-sum financing it crowds out C one-for-one and leaves output unchanged.",
+    key=wkey("phi"),
+)
 
 # 4. Total government spending -----------------------------------------
-st.sidebar.subheader("4. Total government spending")
-s_G_old_pct = BENCH_s_G_pct  # the benchmark's G/Y, Section 1's reference level
+st.sidebar.subheader("D. Total government spending")
+s_G_old_pct = BENCH_s_G_pct  # the benchmark's G/Y, Section S1's reference level
 s_G_new_pct = st.sidebar.slider(
-    "4.1 Total government spending, G/Y (%)", 5.0, 40.0, BENCH_s_G_pct, 1.0,
-    help="The current level of government spending. The benchmark is G/Y = 20%: "
-         "Section 1 compares the current settings against it, and Section 2 raises "
-         "G/Y from this current level (item 4.2).",
+    "D.1 Total government spending, G/Y (%)", 5.0, 40.0, BENCH_s_G_pct, 1.0,
+    help=f"The current level of government spending. The benchmark is G/Y = {BENCH_s_G_pct:.0f}%: "
+         "Section S1 compares the current settings against it, and Section S3 raises "
+         "G/Y from this current level (item D.2).",
     key=wkey("s_G_new_pct"))
-delta_s_G_pct = s_G_new_pct - s_G_old_pct
-st.sidebar.caption(f"The taxes in item 1 rise with G/Y to pay for it; the tables show "
-                    f"the resulting tax rates. "
-                    f"ΔG/Y vs. the {BENCH_s_G_pct:.0f}% benchmark = **{delta_s_G_pct:+.1f}** "
-                    f"percentage points.")
 dG_pct = st.sidebar.number_input(
-    "4.2 Increase in G/Y for Section 2 (percentage points)", 0.5, 10.0, 1.0, 0.5,
-    help="Sections 2 and 3 raise G/Y by this much from its current level (item 4.1), "
+    "D.2 Increase in G/Y for Sections S3 and S4 (percentage points)", 0.5, 10.0, 1.0, 0.5,
+    help="Sections S3 and S4 raise G/Y by this much from its current level (item D.1), "
          "holding every other setting as it is now.",
     key=wkey("dG_pct"))
 
 # 4.3 Duration of the change, alongside G/Y within the same section, since it
 # only governs how long a ΔG/Y change lasts. --------------------------------
-duration_label = st.sidebar.radio("4.3 Duration of the change", ["Permanent", "Temporary"], key=wkey("duration_label"))
+duration_label = st.sidebar.radio("D.3 Duration of the change", ["Permanent", "Temporary"], key=wkey("duration_label"))
 permanent = duration_label == "Permanent"
 duration_years = 4
 if not permanent:
     duration_years = st.sidebar.slider("Duration (years)", 1, 20, 4, 1, key=wkey("duration_years"))
 
 # 5. Composition of G ------------------------------------------------------
-st.sidebar.subheader("5. Composition of G")
-st.sidebar.caption("Enter each piece's share of government spending (%): public "
-                    "investment Iᴳ (builds public capital Kᴳ), in-kind welfare Gᶜ (government "
-                    "consumption such as health care, education, or food programs, which "
-                    "households value), and cash welfare Gᵀ (transfers paid to households).")
+st.sidebar.subheader("E. Composition of G")
 comp_c1, comp_c2, comp_c3 = st.sidebar.columns(3)
 in_IG = comp_c1.number_input("Investment Iᴳ (%)", 0.0, 100.0, BENCH_f_IG_pct, 5.0, key=wkey("in_IG"))
 in_GC = comp_c2.number_input("In-kind Gᶜ (%)", 0.0, 100.0, BENCH_f_GC_pct, 5.0, key=wkey("in_GC"))
@@ -325,16 +381,8 @@ st.sidebar.plotly_chart(fig_comp, use_container_width=True, config={"displayMode
 st.sidebar.caption(f"Public investment Iᴳ **{f_IG_pct:.0f}%** · in-kind welfare Gᶜ "
                     f"**{f_GC_pct:.0f}%** · cash welfare Gᵀ **{f_GT_pct:.0f}%** of G.")
 
-phi = st.sidebar.slider(
-    "Value of Gᶜ to households, φ", 0.0, 1.0, BENCH_phi, 0.05,
-    help="Utility is ln(C + φ·Gᶜ) + θ_L·ln(1−N). φ=0: Gᶜ is a pure drain (Baxter & King's "
-         "\"basic purchases\"). φ=1: Gᶜ is a perfect substitute for private consumption, "
-         "so under lump-sum financing it crowds out C one-for-one and leaves output unchanged.",
-    key=wkey("phi"),
-)
-
 # 6. Household types ----------------------------------------------------------
-st.sidebar.subheader("6. Household types")
+st.sidebar.subheader("F. Household types")
 lam = st.sidebar.slider(
     "Hand-to-mouth share of households, λ", 0.0, 0.9, BENCH_lam, 0.05,
     help="Hand-to-mouth (non-Ricardian) working families own no capital, spend all their "
@@ -345,14 +393,19 @@ lam = st.sidebar.slider(
     key=wkey("lam"),
 )
 
-st.sidebar.divider()
-st.sidebar.markdown(
-    "**Reading the results:** all quantities in the charts are *percent "
-    "deviations from the original (pre-policy) equilibrium*. Because this app "
-    "solves the model's exact nonlinear steady state (rather than the paper's "
-    "closed-form elasticity approximation, eq. 16), multiplier values will be "
-    "close to, but not identical to, the paper's point estimates."
-)
+# The results use the settings last applied with the Run button, not the live
+# widget values, so students can change several controls before re-solving.
+current = dict(tax_mix_v=tax_mix_v, theta_G=theta_G,
+               s_G_new_pct=s_G_new_pct, dG_pct=dG_pct, permanent=permanent,
+               duration_years=duration_years, f_IG_pct=f_IG_pct, f_GC_pct=f_GC_pct,
+               f_GT_pct=f_GT_pct, phi=phi, lam=lam)
+if run_clicked or "applied" not in st.session_state:
+    st.session_state["applied"] = current
+applied = st.session_state["applied"]
+if applied != current:
+    run_note.warning("Settings changed. Click **Run simulation** to update the results.")
+(tax_mix_v, theta_G, s_G_new_pct, dG_pct, permanent, duration_years,
+ f_IG_pct, f_GC_pct, f_GT_pct, phi, lam) = (applied[k] for k in current)
 
 # --------------------------------------------------------------------------
 # Solve the model
@@ -368,7 +421,7 @@ N_target_v = N_target_pct / 100.0
 f_IG_v, f_GC_v, f_GT_v = f_IG_pct / 100.0, f_GC_pct / 100.0, f_GT_pct / 100.0
 phi_v = phi
 lam_v = lam
-# Section 2's experiment: from the current G/Y (item 4.1) up by dG (item 4.2).
+# Section S3's experiment: from the current G/Y (item D.1) up by dG (item D.2).
 s_G_up_v = s_G_new_v + dG_pct / 100.0
 
 BENCH_f_IG, BENCH_f_GC, BENCH_f_GT = BENCH_f_IG_pct / 100.0, BENCH_f_GC_pct / 100.0, BENCH_f_GT_pct / 100.0
@@ -379,13 +432,13 @@ BENCH_tax_mix = (BENCH_f_LS_pct / 100.0, BENCH_f_Y_pct / 100.0, BENCH_f_C_pct / 
 # recalibrated its own theta_L, hours would always land back on exactly N_target by
 # construction, silently masking any real labor-supply response to composition/
 # financing/θ_G/r/φ/λ. Holding theta_L fixed lets N move honestly, and makes
-# Section 2's starting point the same as Section 1's "Current settings".
+# Section S3's starting point the same as Section S1's "Current settings".
 #
 # Public capital enters production relative to a fixed reference level K̄ᴳ,
 # Y = K^θK·(Kᴳ/K̄ᴳ)^θG·N^θN, which is the model's Y = A·K^θK·(Kᴳ)^θG·N^θN with
 # A = K̄ᴳ^(-θG). K̄ᴳ is half the public capital of the benchmark economy without the
 # public-capital effect (θG=0), so the benchmark has Kᴳ/K̄ᴳ > 1 and a higher θG raises
-# output. theta_L is then calibrated in the benchmark itself.
+# output. theta_L is then calibrated in the paper's benchmark itself.
 @st.cache_data(show_spinner=False)
 def benchmark_calibration(theta_N, delta, r, s_G, f_IG, f_GC, f_GT, tax_mix, N_target,
                            phi, lam, theta_G):
@@ -402,9 +455,11 @@ def benchmark_calibration(theta_N, delta, r, s_G, f_IG, f_GC, f_GT, tax_mix, N_t
     return KG_ref, theta_L_bench
 
 
+P = PAPER_BENCH  # calibrate to the paper's benchmark, whatever benchmark is in use
 KG_ref, theta_L_bench = benchmark_calibration(
-    theta_N, delta_pct / 100.0, BENCH_r_pct / 100.0, BENCH_s_G, BENCH_f_IG, BENCH_f_GC,
-    BENCH_f_GT, BENCH_tax_mix, N_target_pct / 100.0, BENCH_phi, BENCH_lam, BENCH_theta_G)
+    theta_N, delta_pct / 100.0, BENCH_r_pct / 100.0, P["s_G"] / 100.0, P["f_IG"] / 100.0,
+    P["f_GC"] / 100.0, P["f_GT"] / 100.0, (P["f_LS"] / 100.0, P["f_Y"] / 100.0, P["f_C"] / 100.0),
+    N_target_pct / 100.0, P["phi"], P["lam"], P["theta_G"])
 A_bench = KG_ref ** -BENCH_theta_G
 A_v = KG_ref ** -theta_G_v
 
@@ -415,7 +470,7 @@ ss_old = ss_new = path = None
 
 
 def section2_experiment(**kw):
-    """Section 2/3's ΔG/Y experiment at the current sidebar settings."""
+    """Sections S3/S4's ΔG/Y experiment at the current sidebar settings."""
     return run_experiment(
         theta_N=theta_N_v, delta=delta_v, r=r_v, A=A_v, theta_G=theta_G_v,
         s_G_old=s_G_new_v, s_G_new=s_G_up_v, f_IG=f_IG_v, f_GT=f_GT_v,
@@ -432,9 +487,9 @@ except RuntimeError as exc:  # raised by _solve_saddle_path only
     # The transition-path solver can lose saddle-path stability at extreme tax
     # rates (very high income-tax G/Y, especially with a low investment share)
     # even though the two steady states themselves are perfectly well-defined --
-    # fall back to the steady states alone, so Panel 1 and Panel 2's comparison
+    # fall back to the steady states alone, so S1's and S3's comparison
     # table still work; only the transition-dependent sections (impact
-    # multiplier, transition charts, duration sensitivity, Panel 3's impact
+    # multiplier, transition charts, duration sensitivity, S4's impact
     # column) show a scoped note below instead of taking down the whole page.
     try:
         ss_old = steady_state_for_policy(theta_N_v, delta_v, r_v, A_v, theta_G_v,
@@ -468,16 +523,16 @@ if path_error:
         f"comparisons and long-run multipliers below are still exact and "
         f"valid**; only the transition-path charts and impact multipliers need a "
         f"stable path and are skipped. "
-        f"Try a lower total government spending (item 4.1), a larger lump-sum "
-        f"share (item 1), or a higher public-investment share (item 5) -- all three "
+        f"Try a lower total government spending (item D.1), a larger lump-sum "
+        f"share (item A), or a higher public-investment share (item E) -- all three "
         f"push the instability threshold higher."
     )
 
 # --------------------------------------------------------------------------
 # Fixed benchmark steady state (the BENCH_* scenario defined at the top of the
 # sidebar): a genuinely fixed reference point, independent of every sidebar
-# control, so panel 1 below always shows *some* difference when composition,
-# financing, θ_G, r, φ, or λ are moved -- not just when G/Y is.
+# control, so S1 below always shows *some* difference when composition,
+# financing, θ_G, φ, or λ are moved -- not just when G/Y is.
 # --------------------------------------------------------------------------
 
 benchmark_error = None
@@ -507,19 +562,16 @@ try:
 except Exception as exc:  # noqa: BLE001
     benchmark_error = str(exc)
 
-st.header("1. Cumulative Effects")
+st.header("Part I. The benchmark vs the sidebar's settings", divider="gray")
+st.subheader("S1. Benchmark vs Now")
 st.write("Exact, closed-form solution of the model's long-run (“great ratios”) "
-         "equilibrium: the **fixed benchmark scenario** (tax revenue 50% lump-sum, 20% "
-         "income tax, 30% consumption tax; θ_G=0.10, "
-         "r=6.5%, G/Y=20% split into 20% public investment, 50% in-kind welfare and "
-         "30% cash welfare, φ=0.10, hand-to-mouth share λ=0.3; θ_N=0.58 and δ=10% as "
-         "in Baxter & King) vs. "
-         "**whatever the sidebar is currently set to**. Moving *any* sidebar control -- "
-         "duration aside -- changes the right-hand column, including the tax mix alone "
-         "(item 1): shifting revenue toward the income or consumption tax distorts "
-         "households' choices even if G/Y and composition don't move. \"Cumulative\" because this bundles the net "
-         "effect of *every* control that currently differs from the benchmark, not just "
-         "one at a time -- see \"2. The Marginal Effects of Government Spendings\" below to isolate a single lever.")
+         f"equilibrium: the **benchmark scenario** (tax revenue {BENCH_f_LS_pct:.0f}% lump-sum, "
+         f"{BENCH_f_Y_pct:.0f}% income tax, {BENCH_f_C_pct:.0f}% consumption tax; "
+         f"θ_G={BENCH_theta_G:.2f}, r={BENCH_r_pct}%, G/Y={BENCH_s_G_pct:.0f}% split into "
+         f"{BENCH_f_IG_pct:.0f}% public investment, {BENCH_f_GC_pct:.0f}% in-kind welfare and "
+         f"{BENCH_f_GT_pct:.0f}% cash welfare, φ={BENCH_phi:.2f}, hand-to-mouth share "
+         f"λ={BENCH_lam:.2f}; θ_N=0.58 and δ=10% as in Baxter & King) vs. "
+         "**whatever the sidebar is currently set to**.")
 
 if benchmark_error:
     st.error(f"Could not compute the benchmark steady state: {benchmark_error}")
@@ -563,25 +615,25 @@ else:
         },
     )
 
-    bench_bar_vars = ["Output Y", "Consumption C", "Investment I", "Private capital K", "Public capital Kᴳ"]
-    bench_pct_change = bench_table.set_index("Variable").loc[bench_bar_vars, "% change"]
+    # One bar for every row of the table above, in the same order.
+    bench_bar_vars = bench_table["Variable"].str.strip().tolist()
+    bench_pct_change = bench_table["% change"]
     bench_bar_heights = bench_pct_change.fillna(0.0).values
     bench_bar_text = [("n/a" if pd.isna(v) else f"{v:+.2f}%") for v in bench_pct_change.values]
     fig_bench_bar = go.Figure(go.Bar(x=bench_bar_vars, y=bench_bar_heights,
                                       marker_color=["#2563eb" if v >= 0 else "#dc2626" for v in bench_bar_heights],
                                       text=bench_bar_text, textposition="outside"))
     fig_bench_bar.update_layout(title="% change from the benchmark scenario",
-                                 yaxis_title="% change", height=380, margin=dict(t=50, b=20))
+                                 yaxis_title="% change", height=520, margin=dict(t=50, b=20))
     st.plotly_chart(fig_bench_bar, use_container_width=True)
 
-    st.subheader("Transition path: benchmark → current settings")
-    st.write("Perfect-foresight transition path (log-linearized around the **current "
-             "settings**, solved exactly via eigen-decomposition), imagining the "
+    st.markdown("#### Transition path: benchmark → current settings")
+    st.write("Perfect-foresight transition path, imagining the "
              "economy starts with the benchmark's capital stocks and this new "
-             "regime -- tax mix, composition, φ, θ_G, r, and household types -- is put permanently in "
+             "regime -- tax mix, composition, φ, θ_G, and household types -- is put permanently in "
              "place at year 0. **G/Y specifically respects the Duration control "
-             "(item 4.3)**: Permanent means it jumps to the current G/Y and stays; "
-             "Temporary means it reverts to the benchmark's 20% share after the "
+             "(item D.3)**: Permanent means it jumps to the current G/Y and stays; "
+             f"Temporary means it reverts to the benchmark's {BENCH_s_G_pct:.0f}% share after the "
              "chosen number of years (everything else stays at current settings). "
              "All series are % deviations from the **benchmark** level.")
     try:
@@ -603,221 +655,15 @@ else:
         st.error(f"Could not compute the cumulative transition path: {exc}")
 
 # --------------------------------------------------------------------------
-# 2. Marginal Effects: an increase in G/Y (item 4.2) starting from the current
-# situation -- every sidebar setting, including the current G/Y, as it is now.
-# Reuses ss_old/ss_new/path from the ΔG/Y experiment above; ss_old is the same
-# steady state as Section 1's "Current settings".
-# --------------------------------------------------------------------------
-
-st.header("2. The Marginal Effects of Government Spendings")
-st.write(f"What happens if government spending **rises by {dG_pct:.1f} percentage "
-         f"points of output (item 4.2), starting from the current situation**: G/Y goes "
-         f"from {s_G_new_pct:.1f}% to {s_G_new_pct + dG_pct:.1f}%, while the tax mix, "
-         "composition, φ, θ_G, r, and household types stay exactly as the sidebar has "
-         "them now. \"Marginal\" because this isolates the effect of *one* lever -- more "
-         "government spending -- in whatever economy the sidebar describes. Change any "
-         "other setting (for example λ in item 6) and the starting point changes, so "
-         "these effects change too. The left column is the same steady state as "
-         "Section 1's \"Current settings\".")
-
-marg_left_label = f"Current situation (G/Y = {s_G_new_pct:.1f}%)"
-marg_right_label = f"After the increase (G/Y = {s_G_new_pct + dG_pct:.1f}%)"
-
-marg_table = pd.DataFrame({
-    "Variable": ["Output Y", "Consumption C", "Investment I", "Private capital K",
-                 "Public capital Kᴳ", "Government spending G (total)",
-                 "  Public investment Iᴳ", "  In-kind welfare Gᶜ", "  Cash welfare Gᵀ",
-                 "Labor input N (% of time)", "Real wage w", "Income-tax rate τʸ (%)",
-                 "Consumption-tax rate τᶜ (%)", "Lump-sum tax T (per person)"],
-    marg_left_label: [ss_old.Y, ss_old.C, ss_old.I, ss_old.K, ss_old.KG,
-                       ss_old.G, ss_old.IG, ss_old.GC, ss_old.GT, ss_old.N * 100,
-                       ss_old.w, ss_old.tau_y * 100, ss_old.tau_c * 100, ss_old.T],
-    marg_right_label: [ss_new.Y, ss_new.C, ss_new.I, ss_new.K, ss_new.KG, ss_new.G,
-                        ss_new.IG, ss_new.GC, ss_new.GT, ss_new.N * 100,
-                        ss_new.w, ss_new.tau_y * 100, ss_new.tau_c * 100, ss_new.T],
-})
-if lam_v > 0:
-    marg_table = pd.concat([marg_table, pd.DataFrame({
-        "Variable": ["Optimizers' consumption Cᴼ (per person)", "Hand-to-mouth consumption Cᴴ (per person)",
-                     "Optimizers' hours Nᴼ (% of time)", "Hand-to-mouth hours Nᴴ (% of time)"],
-        marg_left_label: [ss_old.CO, ss_old.CH, ss_old.NO * 100, ss_old.NH * 100],
-        marg_right_label: [ss_new.CO, ss_new.CH, ss_new.NO * 100, ss_new.NH * 100],
-    })], ignore_index=True)
-marg_both_zero = (marg_table[marg_left_label] == 0) & (marg_table[marg_right_label] == 0)
-marg_table["% change"] = 100 * (marg_table[marg_right_label] / marg_table[marg_left_label].replace(0, np.nan) - 1)
-marg_table.loc[marg_both_zero, "% change"] = 0.0
-
-st.dataframe(
-    marg_table,
-    hide_index=True,
-    use_container_width=True,
-    column_config={
-        marg_left_label: st.column_config.NumberColumn(format="%.6f"),
-        marg_right_label: st.column_config.NumberColumn(format="%.6f"),
-        "% change": st.column_config.NumberColumn(format="%+.2f%%"),
-    },
-)
-
-marg_bar_vars = ["Output Y", "Consumption C", "Investment I", "Private capital K", "Public capital Kᴳ"]
-marg_pct_change = marg_table.set_index("Variable").loc[marg_bar_vars, "% change"]
-marg_bar_heights = marg_pct_change.fillna(0.0).values
-marg_bar_text = [("n/a" if pd.isna(v) else f"{v:+.2f}%") for v in marg_pct_change.values]
-fig_marg_bar = go.Figure(go.Bar(x=marg_bar_vars, y=marg_bar_heights,
-                                 marker_color=["#2563eb" if v >= 0 else "#dc2626" for v in marg_bar_heights],
-                                 text=marg_bar_text, textposition="outside"))
-fig_marg_bar.update_layout(title=f"% change from the current situation after G/Y rises by {dG_pct:.1f} points",
-                            yaxis_title="% change", height=380, margin=dict(t=50, b=20))
-st.plotly_chart(fig_marg_bar, use_container_width=True)
-
-dG_headline = ss_new.G - ss_old.G
-multiplier_long_run = (ss_new.Y - ss_old.Y) / dG_headline if abs(dG_headline) > 1e-12 else float("nan")
-
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Long-run output multiplier ΔY/ΔG", f"{multiplier_long_run:+.2f}")
-c2.metric("Impact (year-0) output multiplier",
-          f"{experiment.multiplier_impact:+.2f}" if experiment else "n/a (unstable path)")
-c3.metric("Steady-state hours worked N",
-          f"{ss_old.N*100:.1f}% → {ss_new.N*100:.1f}%")
-c4.metric("Income / consumption tax rate",
-          f"{ss_old.tau_y*100:.1f}% / {ss_old.tau_c*100:.1f}% → "
-          f"{ss_new.tau_y*100:.1f}% / {ss_new.tau_c*100:.1f}%")
-
-if multiplier_long_run > 1:
-    st.success(
-        f"**A one-dollar permanent increase in government spending raises long-run "
-        f"output by ≈ ${multiplier_long_run:.2f}.** This exceed-1 "
-        f"multiplier is the paper's central, surprising result: it comes from labor "
-        f"supply rising (negative wealth effect), and — if θ_G>0 — public investment "
-        f"directly raising the productivity of private capital and labor."
-    )
-elif multiplier_long_run < 0:
-    st.warning(
-        f"**Output *falls* by ≈ ${-multiplier_long_run:.2f} for every dollar "
-        f"of new spending.** The higher income-tax rate (on labor and capital income) "
-        f"and consumption-tax rate (which lowers what an hour of work buys) depress work "
-        f"effort and capital formation by more than the direct resource cost of the "
-        f"spending itself."
-    )
-
-if path is None:
-    st.info("Transition path and impact multipliers are unavailable at these settings "
-             "(see the saddle-path note above) -- only long-run, steady-state "
-             "comparisons are shown.")
-else:
-    st.subheader("Transition path: isolating the ΔG/Y shock")
-    st.write("Perfect-foresight transition path (log-linearized around the relevant steady "
-             "state, solved exactly via eigen-decomposition -- no simulation noise). "
-             "All series are % deviations from the *current situation* (the steady state "
-             "set by the sidebar, before the extra rise in G/Y), matching "
-             "Figures 2-4 of the paper.")
-    render_transition_tabs(
-        path, wkey("years_to_show_marginal"), "the current situation",
-        caption_commodity="Compare to Baxter & King Figure 2 (permanent) / Figure 3 "
-            "(temporary war) / Figure 4 (GRH). Watch the investment 'accelerator boom' "
-            "on impact when the shock is permanent and lump-sum financed.",
-        caption_labor="A permanent, lump-sum-financed increase in G is a negative wealth "
-            "effect: households work more and consume less, so labor rises and (with "
-            "capital predetermined) the wage falls on impact.",
-        caption_financial="An unanticipated permanent increase in G should raise short "
-            "real rates on impact -- the model's sharpest, most testable empirical "
-            "prediction (Section III.E of the paper).",
-    )
-
-# --------------------------------------------------------------------------
-# 3. Multiplier effects of government spending, by variable
-# --------------------------------------------------------------------------
-
-st.header("3. Multiplier Effects")
-st.write(
-    "How much does the increase in G/Y (item 4.2) move each variable, per dollar of "
-    r"new spending: $\Delta X/\Delta G$ for $X\in\{Y,C,I,K,K^G\}$, both "
-    "**long-run** (comparing the two steady states) and **on impact** (year 0 of "
-    "the transition path above) -- same experiment as \"2. The Marginal Effects of Government Spendings\", "
-    "holding the tax mix, composition, φ, θ_G, r, and household types fixed at the "
-    "sidebar's current settings. With hand-to-mouth households (item 6), the two "
-    "household types' consumption rows are group totals, so they add up to the "
-    "consumption row."
-)
-
-if path is None:
-    st.info("Impact multipliers are unavailable at these settings (see the "
-             "saddle-path note above) -- only long-run multipliers are shown.")
-
-dG_total = ss_new.G - ss_old.G
-
-def _long_run_mult(x_old, x_new):
-    return (x_new - x_old) / dG_total if abs(dG_total) > 1e-12 else float("nan")
-
-def _impact_mult(field_path, x_old):
-    if field_path is None:
-        return float("nan")
-    # field_path is already expressed as a % deviation from ss_old (see
-    # run_experiment's `shift` step), so this recovers the year-0 level directly.
-    x0 = x_old * float(np.exp(field_path[0] / 100.0))
-    return (x0 - x_old) / dG_total if abs(dG_total) > 1e-12 else float("nan")
-
-mult_vars = [
-    ("Output Y", ss_old.Y, ss_new.Y, path.Y if path else None),
-    ("Consumption C", ss_old.C, ss_new.C, path.C if path else None),
-    ("Investment I", ss_old.I, ss_new.I, path.I if path else None),
-    ("Private capital K", ss_old.K, ss_new.K, path.K if path else None),
-    ("Public capital Kᴳ", ss_old.KG, ss_new.KG, path.KG if path else None),
-]
-if lam_v > 0:
-    # Group totals, so the two rows add up to the aggregate consumption row.
-    mult_vars += [
-        ("Optimizers' consumption (1−λ)·Cᴼ", (1 - lam_v) * ss_old.CO, (1 - lam_v) * ss_new.CO,
-         path.CO if path else None),
-        ("Hand-to-mouth consumption λ·Cᴴ", lam_v * ss_old.CH, lam_v * ss_new.CH,
-         path.CH if path else None),
-    ]
-mult_table = pd.DataFrame({
-    "Variable": [name for name, *_ in mult_vars],
-    "Long-run ΔX/ΔG": [_long_run_mult(x_old, x_new) for _, x_old, x_new, _ in mult_vars],
-    "Impact (year-0) ΔX/ΔG": [_impact_mult(fp, x_old) for _, x_old, _, fp in mult_vars],
-})
-
-st.dataframe(
-    mult_table,
-    hide_index=True,
-    use_container_width=True,
-    column_config={
-        "Long-run ΔX/ΔG": st.column_config.NumberColumn(format="%+.2f"),
-        "Impact (year-0) ΔX/ΔG": st.column_config.NumberColumn(format="%+.2f"),
-    },
-)
-
-fig_mult = go.Figure()
-fig_mult.add_trace(go.Bar(name="Long-run", x=mult_table["Variable"],
-                           y=mult_table["Long-run ΔX/ΔG"], marker_color="#2563eb"))
-fig_mult.add_trace(go.Bar(name="Impact (year-0)", x=mult_table["Variable"],
-                           y=mult_table["Impact (year-0) ΔX/ΔG"], marker_color="#f59e0b"))
-fig_mult.add_hline(y=0, line_dash="dot", line_color="gray")
-fig_mult.update_layout(barmode="group", title="Multipliers ΔX/ΔG: change in each variable per dollar of new government spending",
-                        yaxis_title="ΔX / ΔG", height=420, margin=dict(t=50, b=20))
-st.plotly_chart(fig_mult, use_container_width=True)
-
-st.caption(
-    "A multiplier above +1.00 for Output means a marginal dollar of government "
-    "spending raises long-run output by more than a dollar -- the paper's central, "
-    "surprising result under lump-sum financing (labor supply rises from the "
-    "negative wealth effect, and, if θ_G>0, public investment directly raises "
-    "productivity). Investment's impact multiplier can be large even when its "
-    "long-run multiplier is small: capital 'overshoots' toward the new steady "
-    "state on impact (the accelerator boom, Baxter & King Figure 2), then its net "
-    "long-run change is only what is needed to sustain the new higher K."
-)
-
-# --------------------------------------------------------------------------
-# 4. Policy performance along Section 1's transition (benchmark -> current
+# S2. Policy performance along S1's transition (benchmark -> current
 # settings): growth, incomes by household type, inequality, and welfare.
 # --------------------------------------------------------------------------
 
-st.header("4. Policy Performance: Growth, Inequality, and Welfare")
+st.subheader("S2. Growth, inequality, and welfare over time")
 st.write(
-    "How does the policy in Section 1 -- moving from the **benchmark scenario** to the "
+    "How does the policy in Section S1 -- moving from the **benchmark scenario** to the "
     "**current settings** -- perform year by year? This section follows the same "
-    "transition path as Section 1 and asks four questions: Does the economy grow? "
+    "transition path as Section S1 and asks four questions: Does the economy grow? "
     "Whose income grows? Does inequality between the two household types rise or "
     "fall? And are households better or worse off overall? Year 0 is the year the "
     "policy changes; the economy was at the benchmark steady state before that. "
@@ -825,14 +671,14 @@ st.write(
     "is flat: change a sidebar setting to create a policy to evaluate."
 )
 st.caption(
-    "Levels here come from the model's exact equations evaluated along Section 1's "
+    "Levels here come from the model's exact equations evaluated along Section S1's "
     "path of capital and optimizers' consumption, so for large policy changes the "
-    "first years can differ a little from Section 1's charts, which use a linear "
+    "first years can differ a little from Section S1's charts, which use a linear "
     "approximation for every variable. Both end at the same new steady state."
 )
 
 if benchmark_error or cumulative_path is None:
-    st.info("Policy performance needs Section 1's transition path, which is "
+    st.info("Policy performance needs Section S1's transition path, which is "
             "unavailable at these settings.")
 else:
     perf = household_outcomes(ss_current if permanent else ss_reverted, cumulative_path.state)
@@ -884,7 +730,7 @@ else:
         return a.sum()
 
     def perf_chart(title, specs, yaxis_title, x, key, how):
-        """A Section 4 line chart plus, below it, a table of the same numbers
+        """A Section S2 line chart plus, below it, a table of the same numbers
         with a final row for the cumulative effect over the years shown."""
         st.plotly_chart(line_fig(title, specs, yaxis_title, x), use_container_width=True, key=key)
         label, rule = cumulative_rules[how]
@@ -903,7 +749,7 @@ else:
                "over everyone, and each household type's series is for one member of that "
                "type.")
     if not two_types:
-        st.info("The current settings have no hand-to-mouth households (λ = 0, item 6), "
+        st.info("The current settings have no hand-to-mouth households (λ = 0, item F), "
                 "so only economy-wide results are shown. Set λ above 0 to compare the "
                 "two household types.")
 
@@ -973,7 +819,7 @@ else:
                 "buys for both types alike. A positive gap means optimizers work more."
             )
         else:
-            st.info("Hours by household type need λ > 0 (item 6).")
+            st.info("Hours by household type need λ > 0 (item F).")
 
     with tab_q:
         if two_types:
@@ -1000,7 +846,7 @@ else:
                 "often a better guide to living standards. Year −1 is the benchmark."
             )
         else:
-            st.info("Inequality between household types needs λ > 0 (item 6).")
+            st.info("Inequality between household types needs λ > 0 (item F).")
 
     with tab_w:
         if two_types:
@@ -1053,11 +899,209 @@ else:
                 "zero means that year is better than the benchmark. A change of 0.01 is "
                 "worth about 1% more consumption-plus-in-kind-welfare (C + φGᶜ) in that "
                 "year. Both the benchmark and the policy are valued with the current φ "
-                "(item 5), so the comparison uses one set of preferences."
+                "(item C), so the comparison uses one set of preferences."
             )
         else:
-            st.info("Welfare by household type needs λ > 0 (item 6), since the benchmark "
+            st.info("Welfare by household type needs λ > 0 (item F), since the benchmark "
                     "has two household types and the current settings have one.")
+
+# --------------------------------------------------------------------------
+# S3. Marginal Effects: an increase in G/Y (item D.2) starting from the current
+# situation -- every sidebar setting, including the current G/Y, as it is now.
+# Reuses ss_old/ss_new/path from the ΔG/Y experiment above; ss_old is the same
+# steady state as S1's "Current settings".
+# --------------------------------------------------------------------------
+
+st.header("Part II. The Effect of Raising G/Y", divider="gray")
+st.subheader("S3. Now vs After raising G/Y")
+st.write(f"What happens if government spending **rises by {dG_pct:.1f} percentage "
+         f"points of output (item D.2), starting from the current situation**: G/Y goes "
+         f"from {s_G_new_pct:.1f}% to {s_G_new_pct + dG_pct:.1f}%, while the tax mix, "
+         "composition, φ, θ_G, and household types stay exactly as the sidebar has "
+         "them now. \"Marginal\" because this isolates the effect of *one* lever -- more "
+         "government spending -- in whatever economy the sidebar describes. Change any "
+         "other setting (for example λ in item F) and the starting point changes, so "
+         "these effects change too. The left column is the same steady state as "
+         "Section S1's \"Current settings\".")
+
+marg_left_label = f"Current situation (G/Y = {s_G_new_pct:.1f}%)"
+marg_right_label = f"After the increase (G/Y = {s_G_new_pct + dG_pct:.1f}%)"
+
+marg_table = pd.DataFrame({
+    "Variable": ["Output Y", "Consumption C", "Investment I", "Private capital K",
+                 "Public capital Kᴳ", "Government spending G (total)",
+                 "  Public investment Iᴳ", "  In-kind welfare Gᶜ", "  Cash welfare Gᵀ",
+                 "Labor input N (% of time)", "Real wage w", "Income-tax rate τʸ (%)",
+                 "Consumption-tax rate τᶜ (%)", "Lump-sum tax T (per person)"],
+    marg_left_label: [ss_old.Y, ss_old.C, ss_old.I, ss_old.K, ss_old.KG,
+                       ss_old.G, ss_old.IG, ss_old.GC, ss_old.GT, ss_old.N * 100,
+                       ss_old.w, ss_old.tau_y * 100, ss_old.tau_c * 100, ss_old.T],
+    marg_right_label: [ss_new.Y, ss_new.C, ss_new.I, ss_new.K, ss_new.KG, ss_new.G,
+                        ss_new.IG, ss_new.GC, ss_new.GT, ss_new.N * 100,
+                        ss_new.w, ss_new.tau_y * 100, ss_new.tau_c * 100, ss_new.T],
+})
+if lam_v > 0:
+    marg_table = pd.concat([marg_table, pd.DataFrame({
+        "Variable": ["Optimizers' consumption Cᴼ (per person)", "Hand-to-mouth consumption Cᴴ (per person)",
+                     "Optimizers' hours Nᴼ (% of time)", "Hand-to-mouth hours Nᴴ (% of time)"],
+        marg_left_label: [ss_old.CO, ss_old.CH, ss_old.NO * 100, ss_old.NH * 100],
+        marg_right_label: [ss_new.CO, ss_new.CH, ss_new.NO * 100, ss_new.NH * 100],
+    })], ignore_index=True)
+marg_both_zero = (marg_table[marg_left_label] == 0) & (marg_table[marg_right_label] == 0)
+marg_table["% change"] = 100 * (marg_table[marg_right_label] / marg_table[marg_left_label].replace(0, np.nan) - 1)
+marg_table.loc[marg_both_zero, "% change"] = 0.0
+
+st.dataframe(
+    marg_table,
+    hide_index=True,
+    use_container_width=True,
+    column_config={
+        marg_left_label: st.column_config.NumberColumn(format="%.6f"),
+        marg_right_label: st.column_config.NumberColumn(format="%.6f"),
+        "% change": st.column_config.NumberColumn(format="%+.2f%%"),
+    },
+)
+
+# One bar for every row of the table above, in the same order.
+marg_bar_vars = marg_table["Variable"].str.strip().tolist()
+marg_pct_change = marg_table["% change"]
+marg_bar_heights = marg_pct_change.fillna(0.0).values
+marg_bar_text = [("n/a" if pd.isna(v) else f"{v:+.2f}%") for v in marg_pct_change.values]
+fig_marg_bar = go.Figure(go.Bar(x=marg_bar_vars, y=marg_bar_heights,
+                                 marker_color=["#2563eb" if v >= 0 else "#dc2626" for v in marg_bar_heights],
+                                 text=marg_bar_text, textposition="outside"))
+fig_marg_bar.update_layout(title=f"% change from the current situation after G/Y rises by {dG_pct:.1f} points",
+                            yaxis_title="% change", height=520, margin=dict(t=50, b=20))
+st.plotly_chart(fig_marg_bar, use_container_width=True)
+
+dG_headline = ss_new.G - ss_old.G
+multiplier_long_run = (ss_new.Y - ss_old.Y) / dG_headline if abs(dG_headline) > 1e-12 else float("nan")
+
+if multiplier_long_run > 1:
+    st.success(
+        f"**A one-dollar permanent increase in government spending raises long-run "
+        f"output by ≈ ${multiplier_long_run:.2f}.** This exceed-1 "
+        f"multiplier is the paper's central, surprising result: it comes from labor "
+        f"supply rising (negative wealth effect), and — if θ_G>0 — public investment "
+        f"directly raising the productivity of private capital and labor."
+    )
+elif multiplier_long_run < 0:
+    st.warning(
+        f"**Output *falls* by ≈ ${-multiplier_long_run:.2f} for every dollar "
+        f"of new spending.** The higher income-tax rate (on labor and capital income) "
+        f"and consumption-tax rate (which lowers what an hour of work buys) depress work "
+        f"effort and capital formation by more than the direct resource cost of the "
+        f"spending itself."
+    )
+
+if path is None:
+    st.info("Transition path and impact multipliers are unavailable at these settings "
+             "(see the saddle-path note above) -- only long-run, steady-state "
+             "comparisons are shown.")
+else:
+    st.markdown("#### Transition path: isolating the ΔG/Y shock")
+    st.write("Perfect-foresight transition path (log-linearized around the relevant steady "
+             "state, solved exactly via eigen-decomposition -- no simulation noise). "
+             "All series are % deviations from the *current situation* (the steady state "
+             "set by the sidebar, before the extra rise in G/Y), matching "
+             "Figures 2-4 of the paper.")
+    render_transition_tabs(
+        path, wkey("years_to_show_marginal"), "the current situation",
+        caption_commodity="Compare to Baxter & King Figure 2 (permanent) / Figure 3 "
+            "(temporary war) / Figure 4 (GRH). Watch the investment 'accelerator boom' "
+            "on impact when the shock is permanent and lump-sum financed.",
+        caption_labor="A permanent, lump-sum-financed increase in G is a negative wealth "
+            "effect: households work more and consume less, so labor rises and (with "
+            "capital predetermined) the wage falls on impact.",
+        caption_financial="An unanticipated permanent increase in G should raise short "
+            "real rates on impact -- the model's sharpest, most testable empirical "
+            "prediction (Section III.E of the paper).",
+    )
+
+# --------------------------------------------------------------------------
+# S4. Multiplier effects of government spending, by variable
+# --------------------------------------------------------------------------
+
+st.subheader("S4. Multipliers: change per dollar of new spending")
+st.write(
+    "How much does the increase in G/Y (item D.2) move each variable, per dollar of "
+    r"new spending: $\Delta X/\Delta G$ for $X\in\{Y,C,I,K,K^G\}$, both "
+    "**long-run** (comparing the two steady states) and **on impact** (year 0 of "
+    "the transition path above) -- same experiment as \"S3. Now vs After raising G/Y\", "
+    "holding the tax mix, composition, φ, θ_G, and household types fixed at the "
+    "sidebar's current settings. With hand-to-mouth households (item F), the two "
+    "household types' consumption rows are group totals, so they add up to the "
+    "consumption row."
+)
+
+if path is None:
+    st.info("Impact multipliers are unavailable at these settings (see the "
+             "saddle-path note above) -- only long-run multipliers are shown.")
+
+dG_total = ss_new.G - ss_old.G
+
+def _long_run_mult(x_old, x_new):
+    return (x_new - x_old) / dG_total if abs(dG_total) > 1e-12 else float("nan")
+
+def _impact_mult(field_path, x_old):
+    if field_path is None:
+        return float("nan")
+    # field_path is already expressed as a % deviation from ss_old (see
+    # run_experiment's `shift` step), so this recovers the year-0 level directly.
+    x0 = x_old * float(np.exp(field_path[0] / 100.0))
+    return (x0 - x_old) / dG_total if abs(dG_total) > 1e-12 else float("nan")
+
+mult_vars = [
+    ("Output Y", ss_old.Y, ss_new.Y, path.Y if path else None),
+    ("Consumption C", ss_old.C, ss_new.C, path.C if path else None),
+    ("Investment I", ss_old.I, ss_new.I, path.I if path else None),
+    ("Private capital K", ss_old.K, ss_new.K, path.K if path else None),
+    ("Public capital Kᴳ", ss_old.KG, ss_new.KG, path.KG if path else None),
+]
+if lam_v > 0:
+    # Group totals, so the two rows add up to the aggregate consumption row.
+    mult_vars += [
+        ("Optimizers' consumption (1−λ)·Cᴼ", (1 - lam_v) * ss_old.CO, (1 - lam_v) * ss_new.CO,
+         path.CO if path else None),
+        ("Hand-to-mouth consumption λ·Cᴴ", lam_v * ss_old.CH, lam_v * ss_new.CH,
+         path.CH if path else None),
+    ]
+mult_table = pd.DataFrame({
+    "Variable": [name for name, *_ in mult_vars],
+    "Long-run ΔX/ΔG": [_long_run_mult(x_old, x_new) for _, x_old, x_new, _ in mult_vars],
+    "Impact (year-0) ΔX/ΔG": [_impact_mult(fp, x_old) for _, x_old, _, fp in mult_vars],
+})
+
+st.dataframe(
+    mult_table,
+    hide_index=True,
+    use_container_width=True,
+    column_config={
+        "Long-run ΔX/ΔG": st.column_config.NumberColumn(format="%+.6f"),
+        "Impact (year-0) ΔX/ΔG": st.column_config.NumberColumn(format="%+.6f"),
+    },
+)
+
+fig_mult = go.Figure()
+fig_mult.add_trace(go.Bar(name="Long-run", x=mult_table["Variable"],
+                           y=mult_table["Long-run ΔX/ΔG"], marker_color="#2563eb"))
+fig_mult.add_trace(go.Bar(name="Impact (year-0)", x=mult_table["Variable"],
+                           y=mult_table["Impact (year-0) ΔX/ΔG"], marker_color="#f59e0b"))
+fig_mult.add_hline(y=0, line_dash="dot", line_color="gray")
+fig_mult.update_layout(barmode="group", title="Multipliers ΔX/ΔG: change in each variable per dollar of new government spending",
+                        yaxis_title="ΔX / ΔG", height=420, margin=dict(t=50, b=20))
+st.plotly_chart(fig_mult, use_container_width=True)
+
+st.caption(
+    "A multiplier above +1.00 for Output means a marginal dollar of government "
+    "spending raises long-run output by more than a dollar -- the paper's central, "
+    "surprising result under lump-sum financing (labor supply rises from the "
+    "negative wealth effect, and, if θ_G>0, public investment directly raises "
+    "productivity). Investment's impact multiplier can be large even when its "
+    "long-run multiplier is small: capital 'overshoots' toward the new steady "
+    "state on impact (the accelerator boom, Baxter & King Figure 2), then its net "
+    "long-run change is only what is needed to sustain the new higher K."
+)
 
 # --------------------------------------------------------------------------
 # Footer / methodology note
@@ -1076,8 +1120,8 @@ with st.expander("ℹ️ Methodology notes"):
   decouples from the private-capital/consumption saddle path (it follows the exogenous
   spending path directly) so no 3-variable generalization of the eigen-decomposition is
   needed.
-- **Tax mix (item 1)**: three taxes together raise revenue equal to total government
-  spending G every year, each a fixed share of it (benchmark 50% lump-sum, 20% income
+- **Tax mix (item A)**: three taxes together raise revenue equal to total government
+  spending G every year, each a fixed share of it (the paper's benchmark: 50% lump-sum, 20% income
   tax, 30% consumption tax); their rates adjust year by year so that they do. The
   lump-sum tax is a true non-distorting poll tax. The income tax puts a (1-τʸ) wedge
   on both the labor-leisure and the saving (Euler) margin. The consumption tax puts a
@@ -1085,7 +1129,7 @@ with st.expander("ℹ️ Methodology notes"):
   buys, while a rate that stays constant over time leaves saving undistorted. Because
   the wedges sit on the *margin*, not on net revenue, changing the tax mix alone
   reshapes the whole steady state.
-- **Composition (item 5)**: total government spending G/Y is split into public
+- **Composition (item E)**: total government spending G/Y is split into public
   investment Iᴳ (accumulates into Kᴳ, productivity-enhancing if θ_G>0; Kᴳ enters
   production as (Kᴳ/K̄ᴳ)^θG relative to a fixed reference K̄ᴳ of about half the
   benchmark's public capital, so a higher θ_G raises output, and θ_G>0 needs a
@@ -1096,35 +1140,24 @@ with st.expander("ℹ️ Methodology notes"):
   Gᶜ use up output (Y=C+I+Iᴳ+Gᶜ); Gᵀ only moves income to households. With φ=0, Gᶜ
   is Baxter & King's pure-drain "basic purchases"; with φ=1 and lump-sum financing it
   crowds out private consumption one-for-one and leaves output unchanged.
-- **Household types (item 6)**: a share λ of households are hand-to-mouth working
+- **Household types (item F)**: a share λ of households are hand-to-mouth working
   families (no capital, no saving, no income tax, all of the cash welfare Gᵀ); the
   rest are optimizers (own the capital, pay the income tax, no cash welfare).
   Everyone pays the same per-person lump-sum tax and the consumption tax. Both types
   benefit from Gᶜ. Transition paths are linearized *numerically* around the steady
   state; with λ=0 and a single lump-sum or income tax this reproduces the analytic
   linearization. See Appendix A.3-A.4.
-- **Panel 1 (Cumulative Effects)** compares a *fixed* benchmark scenario (tax revenue
-  50% lump-sum, 20% income tax, 30% consumption tax; θ_G=0.10, r=6.5%, G/Y=20% split
+- **S1 (Benchmark vs Now)** compares a benchmark scenario (by default the paper's, which "Set benchmark
+  economy" can replace: tax revenue 50% lump-sum, 20% income tax, 30% consumption tax; θ_G=0.10, r=6.5%, G/Y=20% split
   20/50/30 into public investment,
   in-kind welfare and cash welfare, φ=0.10, λ=0.3; θ_N=0.58, δ=10% and 20% target
   hours as in Baxter & King) against whatever the sidebar is *currently*
-  set to, so every control (tax mix, composition, φ, θ_G, r, G/Y, household types)
+  set to, so every control (tax mix, composition, φ, θ_G, G/Y, household types)
   shows up as a difference there -- including the tax mix alone, since the income-
   and consumption-tax wedges distort households' margins independent of net revenue. Its transition-path
   chart imagines the economy starting at the benchmark's capital stocks with the
   current regime put permanently in place.
-- **Panel 2 (The Marginal Effects of Government Spendings)** instead isolates the
-  effect of more government spending in the *current* situation: starting from the
-  current settings (including the current G/Y, item 4.1), G/Y rises by the amount in
-  item 4.2 while every other setting (tax mix, composition, φ, θ_G, r, household
-  types) stays as it is. Its starting point is the same steady state as Panel 1's
-  "Current settings", so changing any setting changes these marginal effects.
-- **Panel 3 (Multiplier Effects)** uses the same G/Y increase and reports, for each
-  variable X (Y, C, I, K, Kᴳ, and with λ>0 each household type's consumption), the
-  multiplier ΔX/ΔG -- the change in X per dollar of new government spending -- both
-  the long-run multiplier (from the two steady states) and the impact multiplier
-  (from year 0 of the transition path) for each.
-- **Panel 4 (Policy Performance)** follows Panel 1's transition path (benchmark →
+- **S2 (Growth, inequality, and welfare over time)** follows S1's transition path (benchmark →
   current settings) and reports, year by year, growth of output, labor productivity,
   hours, and labor/capital/disposable income by household type; the hours gap;
   inequality between the types (income and consumption ratios and a two-group Gini);
@@ -1132,6 +1165,17 @@ with st.expander("ℹ️ Methodology notes"):
   transition). Levels come from solving each year's static equations exactly at the
   path's capital and optimizers' consumption. Welfare uses the current φ for both
   scenarios and discounts with β = 1/(1+r).
+- **S3 (Now vs After raising G/Y)** instead isolates the
+  effect of more government spending in the *current* situation: starting from the
+  current settings (including the current G/Y, item D.1), G/Y rises by the amount in
+  item D.2 while every other setting (tax mix, composition, φ, θ_G, household
+  types) stays as it is. Its starting point is the same steady state as S1's
+  "Current settings", so changing any setting changes these marginal effects.
+- **S4 (Multipliers)** uses the same G/Y increase and reports, for each
+  variable X (Y, C, I, K, Kᴳ, and with λ>0 each household type's consumption), the
+  multiplier ΔX/ΔG -- the change in X per dollar of new government spending -- both
+  the long-run multiplier (from the two steady states) and the impact multiplier
+  (from year 0 of the transition path) for each.
 - Reported multipliers are close to, but will not exactly reproduce, the point
   estimates in the paper's Tables 2-4, which are built from a closed-form elasticity
   approximation (equation 16/16'); this app instead solves the *exact* nonlinear
