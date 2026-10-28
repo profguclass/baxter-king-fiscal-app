@@ -37,7 +37,7 @@ Equilibrium.'' Part I lays out the full model the app solves: preferences,
 technology (including the Section VI extension for productive public
 capital), the government's budget, the household's optimality conditions,
 the closed-form steady state, the log-linear transition dynamics, and how
-the app's three comparison panels map onto that math. Part II works
+the app's four sections (S1--S4, in two parts) map onto that math. Part II works
 through seven cases that are easy to get wrong intuitively --- why a
 spending \emph{composition} change is not economically neutral even when
 public capital is unproductive; why the \emph{financing rule} moves the
@@ -47,8 +47,8 @@ mathematical necessity, not by coincidence; why the app can lose its
 saddle path altogether at extreme income-tax rates; why a ``temporary''
 spending increase does not bring the economy back to where it started
 once the underlying policy regime has changed; why the real interest
-rate shapes fiscal multipliers even though it is a completely separate
-sidebar control; and why longer-lasting temporary shocks produce
+rate shapes fiscal multipliers even though it looks like a completely
+separate parameter; and why longer-lasting temporary shocks produce
 \emph{bigger}, not smaller, effects on impact. Part III derives
 every first-order condition and steady-state equation from scratch.
 \end{abstract}
@@ -248,104 +248,135 @@ the present value of \emph{future} government-spending shocks (the
 King--Plosser--Rebelo / Blanchard--Kahn method) rather than simulating
 forward naively, which would blow up numerically.
 
-\section{Reading the app: two comparison panels}
+\section{Reading the app: two parts, four sections}
 \label{sec:panels}
 
 Every chart in the app is one of the two objects above: the closed-form
 steady state of Section~\ref{sec:steadystate}, or the log-linear
-transition path of this section. The app presents them as \textbf{three
-panels}. The first two differ only in \emph{which two steady states are
-being compared} --- the underlying mathematics is identical in both; the
-third simply reorganizes Panel 2's own comparison by variable.
+transition path of this section. The app presents them in \textbf{two
+parts with four sections}. The two parts differ only in \emph{which two
+steady states are being compared} --- the underlying mathematics is the
+same in both. Part~I compares the sidebar's current settings with a fixed
+benchmark (S1 and S2); Part~II takes the current settings as given and
+raises $G/Y$ from there (S3 and S4).
 
-\subsection{Panel 1: Cumulative Effects}
+The sidebar items are lettered: A, the tax mix (each tax's share of
+revenue); B, the productivity of public capital $\theta_G$; C, the value
+of in-kind welfare to households $\varphi$; D, total government spending
+(D.1 the current $G/Y$, D.2 the further increase used in Part~II, D.3
+whether a change in $G/Y$ is permanent or temporary); E, the composition of
+$G$ (public investment, in-kind welfare, cash welfare); and F, the share
+$\lambda$ of hand-to-mouth households. The real interest rate is fixed at
+$r=6.5\%$, with $\theta_N=0.58$ and $\delta=10\%$ as in Baxter \& King.
 
-Compares the paper's one \emph{fixed} benchmark calibration
-($\theta_N=0.58$, $\delta=10\%$, $r=6.5\%$, $G/Y=20\%$, all of it
-transfers, lump-sum financing, $\theta_G=0$) against \textbf{whatever the
-sidebar is currently set to}. Every control --- financing, composition,
-$\theta_G$, $r$, and $G/Y$ --- can differ between the two columns
-simultaneously, so this panel reports the \emph{net, cumulative} effect of
-everything that has been changed at once. It is the right panel for
-questions like Cases A and B below: ``what does switching to income tax
-financing do to the economy, holding everything else at the benchmark?''
+\subsection{Part I, S1: Benchmark vs Now}
+
+Compares a \emph{benchmark} economy against \textbf{whatever the sidebar
+is currently set to}. By default the benchmark is the app's starting
+point: tax revenue 50\% lump-sum, 20\% income tax and 30\% consumption
+tax; $\theta_G=0.10$; $G/Y=20\%$, split 20\% public investment, 50\%
+in-kind welfare and 30\% cash welfare; $\varphi=0.10$; and $\lambda=0.30$.
+The ``Set benchmark economy'' button lets a user replace it for the rest of
+the session. Every control can differ between the two columns at once, so
+this section reports the \emph{net, cumulative} effect of everything that
+has been changed. It is the right place for questions like Cases A and B
+below: ``what does a different tax mix do to the economy, holding
+everything else at the benchmark?''
 
 Its steady-state comparison is the direct application of
 Section~\ref{sec:steadystate}: solve for the benchmark's $(\kappa,N,Y,C,\ldots)$
-once, solve for the current settings' $(\kappa,N,Y,C,\ldots)$ once
-(re-using the benchmark's calibrated $\theta_L$ on both sides, so that
-labor supply is free to respond honestly rather than being pinned back to
-the same target by construction), and report percent differences.
+once, solve for the current settings' $(\kappa,N,Y,C,\ldots)$ once, and
+report percent differences. Both sides re-use one calibrated $\theta_L$
+(and one reference level of public capital), fixed at the default
+benchmark even when a user sets their own. Labor supply is therefore free
+to respond honestly rather than being pinned back to the same target by
+construction, and the same settings always describe the same economy.
 
 Its \emph{time-series} chart applies the log-linear transition machinery
 of this section in a way that goes beyond a simple $\Delta G/Y$
-experiment. Financing, composition, $\theta_G$, and $r$ are always treated
-as a \textbf{permanent, immediate switch in regime} --- this model has no
-mechanism for a structural parameter to ``revert,'' so there is no
-sensible ``temporary $\theta_G$'' or ``temporary financing rule.'' The
+experiment. The tax mix, composition, $\theta_G$, $\varphi$ and $\lambda$
+are always treated as a \textbf{permanent, immediate switch in regime} ---
+this model has no mechanism for a structural parameter to ``revert,'' so
+there is no sensible ``temporary $\theta_G$'' or ``temporary tax mix.'' The
 economy is imagined to start ($t=0$) with the \emph{benchmark's} capital
-stocks $K,K^G$ but the \emph{current settings'} structural parameters and
-policy from that point on, with the transition linearized around the
+stocks $K,K^G$ but the \emph{current settings'} parameters and policy from
+that point on, with the transition linearized around the
 \emph{destination} steady state:
 \eq{ \hat k_0 = \ln\!\frac{K_{\text{benchmark}}}{K_{\text{current}}}, \qquad \hat{k}^G_0 = \ln\!\frac{K^G_{\text{benchmark}}}{K^G_{\text{current}}}. }
-Only total government spending $G$ respects the sidebar's Duration control
-(item 4.2), since a temporary spending change is economically meaningful
-even when the surrounding policy regime is not. If Permanent, $\hat g_t=0$
-for all $t$ ($G/Y$ jumps to the current share immediately and stays there,
-exactly the convention Panel 2 uses for a permanent shock). If Temporary,
-$G/Y$ instead reverts to the \emph{benchmark's} $20\%$ share after the
-chosen number of years --- see Case D below for why this is more subtle
+Only total government spending $G$ respects the Duration control (item
+D.3), since a temporary spending change is economically meaningful even
+when the surrounding policy regime is not. If Permanent, $\hat g_t=0$ for
+all $t$ ($G/Y$ jumps to the current share immediately and stays there). If
+Temporary, $G/Y$ instead reverts to the \emph{benchmark's} share after the
+chosen number of years --- see Case E below for why this is more subtle
 than it first looks.
 
-\subsection{Panel 2: The Marginal Effects of Government Spendings}
+\subsection{Part I, S2: Growth, inequality, and welfare over time}
 
-Compares $G/Y=20\%$ against \textbf{the sidebar's current $G/Y$}, holding
-financing, composition, $\theta_G$, and $r$ fixed at whatever the sidebar
-currently has them at, \emph{on both sides} of the comparison. This
-isolates the effect of the $\Delta G/Y$ lever specifically: resetting
-$G/Y$ to $20\%$ always brings this panel back to exactly zero, no matter
-what the other controls are set to. It is the panel behind the app's
-headline multipliers ($\Delta Y/\Delta G$) and the Table-3-style
-duration-sensitivity replication.
+Follows the \emph{same} transition path as S1, year by year, and asks four
+questions: does the economy grow, whose income grows, does inequality
+between the two household types rise or fall, and are households better
+or worse off? Its tabs (Growth, Incomes, Hours, Inequality, Welfare) report
+growth of output and labor productivity; labor, capital and disposable
+income and hours by household type; income and consumption ratios and a
+two-group Gini; and period utility and consumption-equivalent welfare
+gains, with and without the transition. Rather than reading these off the
+linear approximation, S2 solves each year's static equations exactly at
+S1's path of capital and optimizers' consumption, so for large policy
+changes the first years can differ a little from S1's charts; both end at
+the same steady state. Every chart has a data table under it with a final
+row for the cumulative effect over the years shown.
+
+\subsection{Part II, S3: Now vs After raising G/Y}
+
+Starts from \textbf{the sidebar's current settings}, including the current
+$G/Y$ (item D.1), and raises $G/Y$ by the amount in item D.2, holding the
+tax mix, composition, $\varphi$, $\theta_G$ and $\lambda$ fixed at their
+current values \emph{on both sides} of the comparison. This isolates the
+effect of more government spending in whatever economy the sidebar
+describes: change any other setting and the starting point changes, so
+these effects change too. The left column is the same steady state as
+S1's ``Current settings.''
 
 Its time series is the ordinary $\Delta G/Y$ transition path: $\hat g_t$ is
 the (possibly temporary) government-spending shock itself, $\hat k_0=0$
 (capital starts exactly at the pre-shock steady state, since only $G/Y$
 changed, nothing structural), and the linearization is around whichever
-steady state the shock is being compared to (the new steady state, for a
-permanent shock; the old one, for a temporary shock).
+steady state the economy ends up in (the new steady state, for a permanent
+shock; the current one, for a temporary shock, after which $G/Y$ returns
+to its current level).
 
-\subsection{Panel 3: Multiplier Effects}
+\subsection{Part II, S4: Multipliers, change per dollar of new spending}
 
-Takes the \emph{same} pair of steady states as Panel 2 --- $G/Y=20\%$ vs.
-the sidebar's current $G/Y$, everything else held fixed --- and reports,
-for each of $X\in\{Y,C,I,K,K^G\}$, the multiplier
-\eq{ \frac{\Delta X}{\Delta G} = \frac{X_{\text{current}}-X_{20\%}}{G_{\text{current}}-G_{20\%}}, }
+Takes the \emph{same} pair of steady states as S3 --- the current $G/Y$
+vs.\ the current $G/Y$ plus the item D.2 increase, everything else held
+fixed --- and reports, for each of $X\in\{Y,C,I,K,K^G\}$ (and, when
+$\lambda>0$, each household type's total consumption), the multiplier
+\eq{ \frac{\Delta X}{\Delta G} = \frac{X_{\text{after}}-X_{\text{now}}}{G_{\text{after}}-G_{\text{now}}}, }
 both \textbf{long-run} (using the two steady-state levels directly) and
-\textbf{on impact} (using each variable's year-0 level along Panel 2's own
-transition path in place of $X_{\text{current}}$). No new steady state or
-transition path is computed here --- it is purely Panel 2's comparison,
-reorganized by variable instead of collapsed into a single headline
-number. A multiplier above $+1.00$ for output means a marginal dollar of
-spending raises long-run output by \emph{more} than a dollar, the paper's
-central result; investment's impact multiplier can be large even when its
-long-run multiplier is small, since capital only needs to move once to
-reach the new steady state (the ``accelerator boom'').
+\textbf{on impact} (using each variable's year-0 level along S3's own
+transition path in place of $X_{\text{after}}$). No new steady state or
+transition path is computed here --- it is purely S3's comparison, in
+dollars per dollar of new spending rather than percent changes. A
+multiplier above $+1$ for output means a marginal dollar of spending
+raises long-run output by \emph{more} than a dollar, the paper's central
+result; investment's impact multiplier can be large even when its long-run
+multiplier is small, since capital only needs to move once to reach the
+new steady state (the ``accelerator boom'').
 
 \begin{notebox}
-\textbf{Why not just one panel?} A single ``current settings vs.\ some
-baseline'' panel cannot serve every purpose at once. If the baseline
-tracks the current settings on everything except $G/Y$ (Panel 2's
-convention), then changing financing \emph{alone} --- with $G/Y$ left at
-$20\%$ --- shows up as \emph{no change at all}, since both sides of the
-comparison would use the same financing rule. If instead the baseline is
-the one truly fixed benchmark (Panel 1's convention), resetting $G/Y$ to
-$20\%$ will not zero out the panel unless every other control also happens
-to match the benchmark. Splitting the two eliminates this ambiguity:
-Panel 1 answers ``how far is the economy, in total, from the textbook
-case?''; Panel 2 answers ``what, specifically, is this one lever doing, in
-aggregate?''; Panel 3 answers the same question as Panel 2, but
-``\ldots and how does that break down variable by variable?''
+\textbf{Why two parts?} A single ``current settings vs.\ some baseline''
+comparison cannot serve every purpose at once. If the baseline tracks the
+current settings on everything except $G/Y$ (Part~II's convention), then
+changing the tax mix \emph{alone} shows up as \emph{no change at all},
+since both sides of the comparison use the same tax mix. If instead the
+baseline is one fixed benchmark (Part~I's convention), every control that
+differs from the benchmark shows up at once, so the effect of more
+spending alone cannot be read off. Splitting the two removes this
+ambiguity: S1 and S2 answer ``how far is the economy, in total and over
+time, from the benchmark?''; S3 answers ``what, specifically, does more
+government spending do here?''; and S4 answers the same question as S3,
+per dollar of new spending.
 \end{notebox}
 
 \part{Worked cases}
@@ -376,9 +407,9 @@ productivity.
 \begin{casebox}
 \textbf{Numerical example.} $\theta_N=0.58$, $\delta=10\%$, $r=6.5\%$,
 $G/Y=20\%$, $\theta_G=0$, lump-sum financing, $\theta_L$ calibrated once at
-$I^G/G=0\%$ so that $N=20.0\%$ there. This is exactly what \textbf{Panel 1
-(Cumulative Effects)}, Section~\ref{sec:panels}, shows if only the
-composition slider (item 5) is moved away from the benchmark's $I^G/G=0\%$.
+$I^G/G=0\%$ so that $N=20.0\%$ there. \textbf{S1 (Benchmark vs Now)}, Section~\ref{sec:panels}, shows the
+same mechanism if only the composition (item E) is moved, starting from the
+app's own benchmark rather than this example's.
 
 \begin{center}
 \begin{tabular}{ccccc}
@@ -395,8 +426,8 @@ $100\%$ (all investment) & $25.5\%$ & $0.5009$ & $0.2732$ & $0.1002$ \\
 
 $N$, $Y$, and $I$ all rise as the investment share rises, purely from the
 resource-cost channel --- \emph{before} any productivity effect is even
-switched on. This is exactly why, at $\theta_G=0$, \textbf{Panel 2} still
-reports a nonzero headline multiplier $\Delta Y/\Delta G$ for an ordinary,
+switched on. This is exactly why, at $\theta_G=0$, \textbf{S4} still
+reports a nonzero long-run output multiplier $\Delta Y/\Delta G$ for an ordinary,
 unproductive spending increase ($\approx 1.1$--$1.2$ under lump-sum
 financing) --- $\theta_G=0$ turns off the \emph{productivity} channel, not
 the resource-cost channel that drives this table.
@@ -437,7 +468,7 @@ labor-leisure condition.
 $G/Y=20\%$, all of it transfers ($I^G/G=0\%$), $\theta_G=0$. $\theta_L$ is
 calibrated \emph{separately} under each financing rule so that $N=20.0\%$ in
 both cases --- this isolates the capital-stock channel from any mechanical
-change in hours. \textbf{Panel 1 (Cumulative Effects)}, Section~\ref{sec:panels},
+change in hours. \textbf{S1 (Benchmark vs Now)}, Section~\ref{sec:panels},
 shows this same financing switch, but holds $\theta_L$ fixed at the
 benchmark's calibrated value throughout, so $N$ moves too under income tax
 (it does not recalibrate back to $20.0\%$) --- the mechanism is identical,
@@ -570,12 +601,11 @@ table above shows.
 \label{sec:caseE}
 
 \textbf{Claim to test:} ``If I set Duration to Temporary and shrink $G/Y$
-back to $20\%$ after a few years, Panel 1's chart should return to
+back to $20\%$ after a few years, S1's chart should return to
 exactly the benchmark, since that's where $G/Y$ started.''
 
-\textbf{Why this is wrong.} Panel 1 compares the sidebar's current
-settings against the paper's \emph{fixed} benchmark (lump-sum, $\theta_G=0$,
-all transfers) --- but financing, composition, and $\theta_G$ are always
+\textbf{Why this is wrong.} S1 compares the sidebar's current
+settings against the \emph{fixed} benchmark --- but financing, composition, and $\theta_G$ are always
 treated as a \emph{permanent} regime switch (Section~\ref{sec:panels};
 there is no mechanism for a tax \emph{rule} to revert). So when $G/Y$
 reverts to $20\%$ under a Temporary shock, the economy does \emph{not}
@@ -613,7 +643,7 @@ relative to that reference) breaks the saddle-path solver's implicit
 terminal condition and produces an explosive, diverging path instead of
 convergence to $\text{ss}_{\text{reverted}}$. The fix is to linearize
 around $\text{ss}_{\text{reverted}}$ itself for the post-reversion phase
---- exactly mirroring how a temporary $\Delta G/Y$ shock in Panel 2
+--- exactly mirroring how a temporary $\Delta G/Y$ shock in S3
 already linearizes around the \emph{old} steady state rather than the
 new one (Section~\ref{sec:panels}). The lesson generalizes: in a
 perfect-foresight model, a ``temporary'' shock is only well-posed once
@@ -624,11 +654,11 @@ which reference point the economy actually returns to.
 \section{Case F: the real interest rate changes both the economy's scale and the fiscal multiplier}
 \label{sec:caseF}
 
-\textbf{Claim to test:} ``The real interest rate $r$ (sidebar item 3) is
+\textbf{Claim to test:} ``The real interest rate $r$ (fixed at $6.5\%$ in the app) is
 just the household's discount rate --- it should shift the \emph{level}
 of the economy up or down, but it shouldn't have anything to do with
-\emph{fiscal policy}, since $r$ and $G/Y$ are two completely separate
-sliders.''
+\emph{fiscal policy}, since $r$ and $G/Y$ are two separate
+parameters.''
 
 \textbf{Why this is wrong.} $r$ enters the capital-Euler condition
 directly, $\kappa=\big(\text{tax\_factor}\cdot\theta_K A/(r+\delta)\big)^{1/(1-\theta_K)}$
@@ -639,8 +669,8 @@ and with it $Y$, $K$, $C$, and $w$ --- fall monotonically as $r$ rises,
 claim. But $\kappa$ also determines the investment share
 $s_I=\delta\kappa/(Y/N)$, which is one of the ``great ratios'' feeding
 directly into the labor-leisure condition and, through it, into
-\emph{every} fiscal-policy multiplier in Panels 2--3. $r$ and $G/Y$ are
-separate sliders, but they are \emph{not} separate channels in the
+\emph{every} fiscal-policy multiplier in S3 and S4. $r$ and $G/Y$ are
+separate parameters, but they are \emph{not} separate channels in the
 model's mechanics.
 
 \begin{casebox}
@@ -662,8 +692,7 @@ $12.0\%$ & $3.049$  & $0.2990$ & $0.5709$ & $18.7\%$ & $0.191$ \\
 
 \textbf{Numerical example --- the long-run multiplier $\Delta Y/\Delta G$}
 (a marginal, permanent $\Delta G/Y=1$pp increase, $\theta_L$ recalibrated
-at each $r$ so $N=20\%$ at the pre-shock baseline, matching Panel 2's own
-convention):
+at each $r$ so $N=20\%$ at the pre-shock baseline):
 \begin{center}
 \begin{tabular}{ccc}
 \toprule
@@ -757,12 +786,10 @@ total burden than the permanent one.
 \end{casebox}
 
 \begin{notebox}
-\textbf{Where to see this live.} This is exactly the ``How much does the
-\emph{duration} of a temporary shock matter?'' expander under Panel 2
-(Section~\ref{sec:panels}), which plots the impact multiplier against
-duration for whatever financing/composition/$\theta_G$/G/Y the sidebar
-currently has, with the permanent-shock value drawn as a dashed
-reference line. Baxter \& King make exactly this point in their
+\textbf{Where to see this live.} Set item D.3 to Temporary, vary the
+number of years, and read the impact output multiplier in S4
+(Section~\ref{sec:panels}); setting D.3 to Permanent gives the
+permanent-shock reference value. Baxter \& King make exactly this point in their
 Section~IV, calling it the opposite of the ``Barro--Hall'' intuition that
 temporary fiscal shocks should matter less than permanent ones. It is
 the model's own version of ``forward guidance'' in modern monetary
